@@ -16,3 +16,9 @@ logging:
     com.hdfclife.smartauth: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %logger{36} - %msg%n"
+
+login:
+  rate-limit:
+    limit-for-period: 5
+    limit-refresh-period: 1m
+    timeout-duration: 0s
