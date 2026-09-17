@@ -33,7 +33,13 @@ public class LoginRateLimiter {
      * Contains the common RateLimiter configuration:
      * 5 attempts / minute, timeout = 0.
      *
-     * New per-user/IP RateLimiters copy this configuration.
+     * Spring injects this configured Resilience4j RateLimiter.
+     *
+     * We use it as a template to obtain the common configuration
+     * when creating separate RateLimiters for each username + IP.
+     *
+     * Each newly created RateLimiter has the same configuration,
+     * but maintains its own independent permission state.
      */
     private final RateLimiter rateLimiterTemplate;
 
@@ -54,31 +60,28 @@ public class LoginRateLimiter {
         /*
          * Find the RateLimiter for this key.
          *
-         * If it already exists:
-         *     reuse it.
+         * If the key exists:
+         *     return the existing RateLimiter.
+         *     The lambda is NOT executed.
          *
-         * If it doesn't exist:
-         *     create it and store it in the map.
+         * If the key does not exist:
+         *     execute the lambda, create a new RateLimiter,
+         *     store it in the map, and return it.
+         *
+         * computeIfAbsent() requires a function that accepts
+         * the map's key. We don't need the key to create the
+         * RateLimiter, so keyFromMap is not used.
          */
         RateLimiter limiter = limiters.computeIfAbsent(
-        key,
-        keyFromMap -> createRateLimiter()
-);
-
-private RateLimiter createRateLimiter() {
-    logger.debug("Creating new rate limiter");
-
-    return RateLimiter.of(
-            "login-" + System.nanoTime(),
-            rateLimiterTemplate.getRateLimiterConfig()
-    );
-}
+                key,
+                keyFromMap -> createRateLimiter()
+        );
 
         /*
          * Ask the RateLimiter for permission.
          *
-         * true  -> request is allowed
-         * false -> rate limit has been reached
+         * true  -> permission granted
+         * false -> no permission available
          */
         boolean allowed = limiter.acquirePermission();
 
@@ -98,7 +101,20 @@ private RateLimiter createRateLimiter() {
     }
 
     /*
-     * The username + IP pair is the identity of a rate limit bucket.
+     * Creates a new Resilience4j RateLimiter using the common
+     * configuration from the injected template.
+     */
+    private RateLimiter createRateLimiter() {
+        logger.debug("Creating new rate limiter");
+
+        return RateLimiter.of(
+                "login-" + System.nanoTime(),
+                rateLimiterTemplate.getRateLimiterConfig()
+        );
+    }
+
+    /*
+     * The username + IP pair is the identity of a rate-limit bucket.
      */
     private String createKey(String username, String clientIp) {
         return username + "|" + clientIp;
