@@ -7,18 +7,22 @@ import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.ratelimiter.RateLimiterConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.time.Duration;
 
 @Configuration
-@EnableConfigurationProperties(RateLimitProperties.class)
 public class ResilienceConfig {
 
     private static final Logger logger =
             LoggerFactory.getLogger(ResilienceConfig.class);
+
+    private final RateLimitProperties rateLimitProperties;
+
+    public ResilienceConfig(RateLimitProperties rateLimitProperties) {
+        this.rateLimitProperties = rateLimitProperties;
+    }
 
     @Bean
     public CircuitBreaker externalLoginCircuitBreaker() {
@@ -60,13 +64,12 @@ public class ResilienceConfig {
     }
 
     @Bean
-    public RateLimiterConfig loginRateLimiterConfig(
-            RateLimitProperties properties) {
+    public RateLimiterConfig loginRateLimiterConfig() {
 
         return RateLimiterConfig.custom()
-                .limitForPeriod(properties.getLimitForPeriod())
-                .limitRefreshPeriod(properties.getLimitRefreshPeriod())
-                .timeoutDuration(properties.getTimeoutDuration())
+                .limitForPeriod(rateLimitProperties.getLimitForPeriod())
+                .limitRefreshPeriod(rateLimitProperties.getLimitRefreshPeriod())
+                .timeoutDuration(rateLimitProperties.getTimeoutDuration())
                 .build();
     }
 }
