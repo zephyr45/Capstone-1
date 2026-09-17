@@ -153,12 +153,9 @@ public class AuthController {
     }
 
     private String clientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
-        }
-
+        // Use the peer address unless a trusted proxy is explicitly configured.
+        // Accepting X-Forwarded-For here would let a caller bypass the limiter by
+        // supplying a different header value on every request.
         return request.getRemoteAddr();
     }
 
