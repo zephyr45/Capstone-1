@@ -1,12 +1,16 @@
 package com.hdfc.jwtauth.controllers;
 
 import com.hdfc.jwtauth.services.InMemoryUserService;
+import com.hdfc.jwtauth.services.ExternalLoginService;
 import com.hdfc.jwtauth.services.JwtService;
 import com.hdfc.jwtauth.security.TokenStore;
 import com.hdfc.jwtauth.services.LoginAttemptService;
+import com.hdfc.jwtauth.exceptions.InvalidCredentialsException;
+import com.hdfc.jwtauth.resilience.LoginRateLimiter;
 import com.hdfc.jwtauth.web.ApiResponse;
 import com.hdfc.jwtauth.web.LoginRequest;
 import com.hdfc.jwtauth.web.LoginResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -20,19 +24,30 @@ public class AuthController {
 
     private final InMemoryUserService users;
     private final LoginAttemptService loginAttemptService;
+    private final LoginRateLimiter loginRateLimiter;
+    private final ExternalLoginService externalLoginService;
     private final JwtService jwtService;
     private final TokenStore tokenStore;
 
-    public AuthController(InMemoryUserService users, LoginAttemptService loginAttemptService, JwtService jwtService, TokenStore tokenStore) {
+    public AuthController(
+            InMemoryUserService users,
+            LoginAttemptService loginAttemptService,
+            LoginRateLimiter loginRateLimiter,
+            ExternalLoginService externalLoginService,
+            JwtService jwtService,
+            TokenStore tokenStore) {
         this.users = users;
         this.loginAttemptService = loginAttemptService;
+        this.loginRateLimiter = loginRateLimiter;
+        this.externalLoginService = externalLoginService;
         this.jwtService = jwtService;
         this.tokenStore = tokenStore;
     }
 
     @PostMapping("/login")
     public ResponseEntity<?> login(
-            @RequestBody LoginRequest request) {
+            @RequestBody LoginRequest request,
+            HttpServletRequest servletRequest) {
 
         String username = request.username();
 
@@ -48,15 +63,23 @@ public class AuthController {
                     .status(HttpStatus.LOCKED)
                     .body(new ApiResponse(
                             "Account is temporarily locked. Try again later."
-                    ));
+                ));
         }
 
-        // 2. Find user
+        // 2. Apply request rate limiting before credential validation
+        loginRateLimiter.checkRateLimit(username, clientIp(servletRequest));
+
+        // 3. Find user
         var user = users.find(username);
 
-        // 3. Validate credentials
-        if (user == null ||
-                !user.password().equals(request.password())) {
+        // 4. Validate credentials through the resilient mock external login service
+        try {
+            externalLoginService.validateExternalLogin(
+                    username,
+                    request.password(),
+                    () -> user != null && user.password().equals(request.password())
+            );
+        } catch (InvalidCredentialsException ex) {
 
             loginAttemptService.loginFailed(username);
 
@@ -91,17 +114,17 @@ public class AuthController {
                     ));
         }
 
-        // 4. Successful login → reset failed attempts
+        // 5. Successful login → reset failed attempts
         loginAttemptService.loginSucceeded(username);
 
-        // 5. Generate tokens
+        // 6. Generate tokens
         String accessToken =
                 jwtService.generateAccessToken(user);
 
         String refreshToken =
                 jwtService.generateRefreshToken(user);
 
-        // 6. Store tokens
+        // 7. Store tokens
         tokenStore.save(
                 accessToken,
                 user.username()
@@ -117,7 +140,7 @@ public class AuthController {
                 username
         );
 
-        // 7. Return response
+        // 8. Return response
         return ResponseEntity.ok(
                 new LoginResponse(
                         "Login successful",
@@ -128,6 +151,17 @@ public class AuthController {
                 )
         );
     }
+
+    private String clientIp(HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            return forwardedFor.split(",")[0].trim();
+        }
+
+        return request.getRemoteAddr();
+    }
+
     @PostMapping("/refresh")
     public ResponseEntity<?> refresh(
             @RequestHeader(

@@ -12,6 +12,9 @@ public class InMemoryUserService {
 
     public InMemoryUserService() {
 
+        users.put("user",
+                new UserAccount("user", "password", Set.of("USER"), true));
+
         users.put("sachin",
                 new UserAccount("sachin", "sachin123", Set.of("USER"), true));
 

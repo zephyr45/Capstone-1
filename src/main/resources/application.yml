@@ -12,6 +12,21 @@ logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{36} - %msg%n"
 
+login:
+  rate-limit:
+    limit-for-period: 5
+    limit-refresh-period: 1m
+    timeout-duration: 0s
+
+  circuit-breaker:
+    failure-rate-threshold: 50
+    slow-call-rate-threshold: 100
+    wait-duration-in-open-state: 30s
+    slow-call-duration-threshold: 2s
+    permitted-number-of-calls-in-half-open-state: 3
+    minimum-number-of-calls: 5
+    sliding-window-size: 10
+
 
 resilience4j:
 

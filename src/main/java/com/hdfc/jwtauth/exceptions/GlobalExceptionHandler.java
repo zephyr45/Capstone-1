@@ -74,6 +74,14 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.TOO_MANY_REQUESTS, "Too many requests. Try again later.", request);
     }
 
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleLoginRateLimit(
+            RateLimitExceededException ex, HttpServletRequest request) {
+
+        log.warn("Login rate limit exceeded for {} {}", request.getMethod(), request.getRequestURI());
+        return buildResponse(HttpStatus.TOO_MANY_REQUESTS, "Too many login attempts. Try again later.", request);
+    }
+
     @ExceptionHandler(CallNotPermittedException.class)
     public ResponseEntity<Map<String, Object>> handleCircuitBreaker(
             CallNotPermittedException ex, HttpServletRequest request) {
