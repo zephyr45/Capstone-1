@@ -9,9 +9,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
-import java.time.Instant;
-import java.util.Map;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import com.hdfclife.smartauth.dto.response.ErrorResponse;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -19,22 +19,13 @@ public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     /** Creates the same structured error payload for every exception handled here. */
-    private ResponseEntity<Map<String, Object>> buildResponse(
+    private ResponseEntity<ErrorResponse> buildResponse(
             HttpStatus status, String message, HttpServletRequest request) {
-
-        Map<String, Object> response = Map.of(
-                "timestamp", Instant.now().toString(),
-                "status", status.value(),
-                "error", status.getReasonPhrase(),
-                "message", message,
-                "path", request.getRequestURI()
-        );
-
-        return ResponseEntity.status(status).body(response);
+        return ResponseEntity.status(status).body(ErrorResponse.of(status, message, request));
     }
 
     @ExceptionHandler(InvalidCredentialsException.class)
-    public ResponseEntity<Map<String, Object>> handleInvalidCredentials(
+    public ResponseEntity<ErrorResponse> handleInvalidCredentials(
             InvalidCredentialsException ex, HttpServletRequest request) {
 
         log.warn("Login authentication failed for {} {}", request.getMethod(), request.getRequestURI());
@@ -42,7 +33,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(InvalidTokenException.class)
-    public ResponseEntity<Map<String, Object>> handleInvalidToken(
+    public ResponseEntity<ErrorResponse> handleInvalidToken(
             InvalidTokenException ex, HttpServletRequest request) {
 
         log.warn("Token authentication failed for {} {}", request.getMethod(), request.getRequestURI());
@@ -50,7 +41,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(UserNotFoundException.class)
-    public ResponseEntity<Map<String, Object>> handleUserNotFound(
+    public ResponseEntity<ErrorResponse> handleUserNotFound(
             UserNotFoundException ex, HttpServletRequest request) {
 
         log.warn("User not found on {} {}", request.getMethod(), request.getRequestURI());
@@ -58,7 +49,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(ExternalServiceException.class)
-    public ResponseEntity<Map<String, Object>> handleExternalService(
+    public ResponseEntity<ErrorResponse> handleExternalService(
             ExternalServiceException ex, HttpServletRequest request) {
 
         log.error("External service error on {} {}", request.getMethod(), request.getRequestURI(), ex);
@@ -67,7 +58,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(RequestNotPermitted.class)
-    public ResponseEntity<Map<String, Object>> handleRateLimit(
+    public ResponseEntity<ErrorResponse> handleRateLimit(
             RequestNotPermitted ex, HttpServletRequest request) {
 
         log.warn("Request limit exceeded for {} {}", request.getMethod(), request.getRequestURI());
@@ -75,7 +66,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(RateLimitExceededException.class)
-    public ResponseEntity<Map<String, Object>> handleLoginRateLimit(
+    public ResponseEntity<ErrorResponse> handleLoginRateLimit(
             RateLimitExceededException ex, HttpServletRequest request) {
 
         log.warn("Login rate limit exceeded for {} {}", request.getMethod(), request.getRequestURI());
@@ -83,7 +74,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(CallNotPermittedException.class)
-    public ResponseEntity<Map<String, Object>> handleCircuitBreaker(
+    public ResponseEntity<ErrorResponse> handleCircuitBreaker(
             CallNotPermittedException ex, HttpServletRequest request) {
 
         log.warn("Circuit breaker open for {} {}", request.getMethod(), request.getRequestURI());
@@ -91,8 +82,24 @@ public class GlobalExceptionHandler {
                 "Authentication is temporarily unavailable. Please try again later.", request);
     }
 
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex,
+                                                           HttpServletRequest request) {
+        String message = ex.getBindingResult().getFieldErrors().stream()
+                .findFirst()
+                .map(error -> error.getDefaultMessage())
+                .orElse("Invalid request");
+        return buildResponse(HttpStatus.BAD_REQUEST, message, request);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleMalformedRequest(
+            HttpMessageNotReadableException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.BAD_REQUEST, "Request body must be valid JSON", request);
+    }
+
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleException(Exception ex, HttpServletRequest request) {
+    public ResponseEntity<ErrorResponse> handleException(Exception ex, HttpServletRequest request) {
         log.error("Unhandled error on {} {}", request.getMethod(), request.getRequestURI(), ex);
         return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Something went wrong", request);
     }

@@ -5,6 +5,15 @@ spring:
 server:
   port: 8080
 
+app:
+  cors:
+    allowed-origins:
+      - ${FRONTEND_ORIGIN:http://localhost:3000}
+  jwt:
+    secret: ${JWT_SECRET:hdfc-jwt-demo-secret-key-must-be-at-least-32-bytes-long-2026}
+    access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:30m}
+    refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:7d}
+
 logging:
   level:
     root: INFO
@@ -17,6 +26,7 @@ login:
     limit-for-period: 5
     limit-refresh-period: 1m
     timeout-duration: 0s
+    cleanup-interval-ms: 600000
 
   circuit-breaker:
     failure-rate-threshold: 50
@@ -26,28 +36,4 @@ login:
     permitted-number-of-calls-in-half-open-state: 3
     minimum-number-of-calls: 5
     sliding-window-size: 10
-
-
-resilience4j:
-
-  ratelimiter:
-    instances:
-      loginRateLimiter:
-        limitForPeriod: 5
-        limitRefreshPeriod: 1m
-        timeoutDuration: 0s
-        registerHealthIndicator: true
-
-  circuitbreaker:
-
-    instances:
-      loginCircuitBreaker:
-        registerHealthIndicator: true
-        slidingWindowType: COUNT_BASED
-        slidingWindowSize: 5
-        minimumNumberOfCalls: 3
-        failureRateThreshold: 50
-        waitDurationInOpenState: 30s
-        permittedNumberOfCallsInHalfOpenState: 2
-        automaticTransitionFromOpenToHalfOpenEnabled: true
 

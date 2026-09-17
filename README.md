@@ -95,3 +95,9 @@ For a simple explanation of every refactor and the files that moved, see
 ## Important
 
 This is intentionally database-free for the assignment. The in-memory token store is also cleared whenever the application restarts, so previously issued tokens become invalid even if their JWT expiry has not elapsed.
+
+## Frontend integration
+
+The frontend handoff is documented in [FRONTEND_READY.md](FRONTEND_READY.md), and the machine-readable API contract is in [openapi.yaml](openapi.yaml).
+
+For local Next.js development, the backend allows `http://localhost:3000`. Set `FRONTEND_ORIGIN` when the frontend runs on another origin. Set `JWT_SECRET` in any non-development environment.

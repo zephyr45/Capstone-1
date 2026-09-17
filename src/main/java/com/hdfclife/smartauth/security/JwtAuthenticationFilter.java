@@ -41,7 +41,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 Claims claims = jwtService.parse(token);
 
-                if (tokenStore.isActive(token)) {
+                if (tokenStore.isActive(token) && jwtService.isAccessToken(token)) {
                     var authorities = jwtService.roles(token).stream()
                         .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
                         .collect(Collectors.toSet());
@@ -50,7 +50,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         claims.getSubject(), null, authorities);
                     SecurityContextHolder.getContext().setAuthentication(auth);
                 } else {
-                    log.debug("Token rejected because it is not active in InMemoryTokenRepository");
+                    log.debug("Token rejected because it is inactive or not an access token");
                 }
             } catch (Exception ex) {
                 log.debug("Invalid JWT: {}", ex.getMessage());

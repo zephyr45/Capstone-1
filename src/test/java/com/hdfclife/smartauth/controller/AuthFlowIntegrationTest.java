@@ -10,8 +10,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
@@ -44,11 +46,21 @@ class AuthFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("sachin"));
 
-        mockMvc.perform(post("/refresh")
+        mockMvc.perform(get("/auth")
+                        .header("Authorization", "Bearer " + refreshToken))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("Invalid or expired token"));
+
+        JsonNode refreshed = objectMapper.readTree(mockMvc.perform(post("/refresh")
                         .header("Authorization", "Bearer " + refreshToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").isString())
-                .andExpect(jsonPath("$.refreshToken").isString());
+                .andExpect(jsonPath("$.refreshToken").isString())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+        String rotatedRefreshToken = refreshed.get("refreshToken").asText();
 
         mockMvc.perform(post("/logout")
                         .header("Authorization", "Bearer " + accessToken))
@@ -56,6 +68,10 @@ class AuthFlowIntegrationTest {
 
         mockMvc.perform(get("/auth")
                         .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/refresh")
+                        .header("Authorization", "Bearer " + rotatedRefreshToken))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -70,5 +86,25 @@ class AuthFlowIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"serviceDown\",\"password\":\"anything\"}"))
                 .andExpect(status().isServiceUnavailable());
+    }
+
+    @Test
+    void rejectsMalformedLoginRequestsWithBadRequest() throws Exception {
+        mockMvc.perform(post("/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":null,\"password\":\"x\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.path").value("/login"));
+    }
+
+    @Test
+    void allowsConfiguredNextJsCorsPreflight() throws Exception {
+                mockMvc.perform(options("/login")
+                        .header("Origin", "http://localhost:3000")
+                        .header("Access-Control-Request-Method", "POST")
+                        .header("Access-Control-Request-Headers", "authorization,content-type"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"));
     }
 }

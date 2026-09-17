@@ -36,4 +36,5 @@ public class RateLimitProperties {
     public void setTimeoutDuration(Duration timeoutDuration) {
         this.timeoutDuration = timeoutDuration;
     }
+
 }

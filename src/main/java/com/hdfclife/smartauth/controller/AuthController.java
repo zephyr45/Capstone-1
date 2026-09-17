@@ -8,6 +8,7 @@ import com.hdfclife.smartauth.service.LoginAttemptService;
 import com.hdfclife.smartauth.exception.InvalidCredentialsException;
 import com.hdfclife.smartauth.resilience.LoginRateLimiter;
 import com.hdfclife.smartauth.dto.response.ApiResponse;
+import com.hdfclife.smartauth.dto.response.ErrorResponse;
 import com.hdfclife.smartauth.dto.request.LoginRequest;
 import com.hdfclife.smartauth.dto.response.LoginResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -17,6 +18,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
+
+import java.util.UUID;
 
 @RestController
 public class AuthController {
@@ -46,7 +50,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(
-            @RequestBody LoginRequest request,
+            @Valid @RequestBody LoginRequest request,
             HttpServletRequest servletRequest) {
 
         String username = request.username();
@@ -61,9 +65,8 @@ public class AuthController {
 
             return ResponseEntity
                     .status(HttpStatus.LOCKED)
-                    .body(new ApiResponse(
-                            "Account is temporarily locked. Try again later."
-                ));
+                    .body(ErrorResponse.of(HttpStatus.LOCKED,
+                            "Account is temporarily locked. Try again later.", servletRequest));
         }
 
         // 2. Apply request rate limiting before credential validation
@@ -102,37 +105,39 @@ public class AuthController {
 
                 return ResponseEntity
                         .status(HttpStatus.LOCKED)
-                        .body(new ApiResponse(
-                                "Too many failed login attempts. Account locked for 5 minutes."
-                        ));
+                        .body(ErrorResponse.of(HttpStatus.LOCKED,
+                                "Too many failed login attempts. Account locked for 5 minutes.", servletRequest));
             }
 
             return ResponseEntity
                     .status(HttpStatus.UNAUTHORIZED)
-                    .body(new ApiResponse(
-                            "Invalid username or password"
-                    ));
+                    .body(ErrorResponse.of(HttpStatus.UNAUTHORIZED,
+                            "Invalid username or password", servletRequest));
         }
 
         // 5. Successful login → reset failed attempts
         loginAttemptService.loginSucceeded(username);
 
         // 6. Generate tokens
+        String sessionId = UUID.randomUUID().toString();
+
         String accessToken =
-                jwtService.generateAccessToken(user);
+                jwtService.generateAccessToken(user, sessionId);
 
         String refreshToken =
-                jwtService.generateRefreshToken(user);
+                jwtService.generateRefreshToken(user, sessionId);
 
         // 7. Store tokens
         tokenStore.save(
                 accessToken,
-                user.username()
+                user.username(),
+                sessionId
         );
 
         tokenStore.save(
                 refreshToken,
-                user.username()
+                user.username(),
+                sessionId
         );
 
         log.info(
@@ -164,16 +169,16 @@ public class AuthController {
             @RequestHeader(
                     value = "Authorization",
                     required = false
-            ) String authorization) {
+            ) String authorization,
+            HttpServletRequest servletRequest) {
 
         if (authorization == null ||
                 !authorization.startsWith("Bearer ")) {
 
             return ResponseEntity
                     .badRequest()
-                    .body(new ApiResponse(
-                            "Bearer refresh token is required"
-                    ));
+                    .body(ErrorResponse.of(HttpStatus.BAD_REQUEST,
+                            "Bearer refresh token is required", servletRequest));
         }
 
         String oldRefreshToken = authorization.substring(7);
@@ -185,9 +190,8 @@ public class AuthController {
 
                 return ResponseEntity
                         .status(HttpStatus.UNAUTHORIZED)
-                        .body(new ApiResponse(
-                                "Refresh token is invalid or already used"
-                        ));
+                        .body(ErrorResponse.of(HttpStatus.UNAUTHORIZED,
+                                "Refresh token is invalid or already used", servletRequest));
             }
 
             // 2. Make sure it is actually a refresh token
@@ -195,9 +199,8 @@ public class AuthController {
 
                 return ResponseEntity
                         .status(HttpStatus.UNAUTHORIZED)
-                        .body(new ApiResponse(
-                                "Access token cannot be used as refresh token"
-                        ));
+                        .body(ErrorResponse.of(HttpStatus.UNAUTHORIZED,
+                                "Access token cannot be used as refresh token", servletRequest));
             }
 
             // 3. Get username from old refresh token
@@ -210,9 +213,8 @@ public class AuthController {
 
                 return ResponseEntity
                         .status(HttpStatus.UNAUTHORIZED)
-                        .body(new ApiResponse(
-                                "User not found"
-                        ));
+                        .body(ErrorResponse.of(HttpStatus.UNAUTHORIZED,
+                                "User not found", servletRequest));
             }
 
             // 4. IMPORTANT:
@@ -220,22 +222,29 @@ public class AuthController {
             tokenStore.remove(oldRefreshToken);
 
             // 5. Generate NEW access token
+            String sessionId = jwtService.sessionId(oldRefreshToken);
+            if (sessionId == null) {
+                sessionId = UUID.randomUUID().toString();
+            }
+
             String newAccessToken =
-                    jwtService.generateAccessToken(user);
+                    jwtService.generateAccessToken(user, sessionId);
 
             // 6. Generate NEW refresh token
             String newRefreshToken =
-                    jwtService.generateRefreshToken(user);
+                    jwtService.generateRefreshToken(user, sessionId);
 
             // 7. Store both new tokens
             tokenStore.save(
                     newAccessToken,
-                    user.username()
+                    user.username(),
+                    sessionId
             );
 
             tokenStore.save(
                     newRefreshToken,
-                    user.username()
+                    user.username(),
+                    sessionId
             );
 
             log.info(
@@ -262,9 +271,8 @@ public class AuthController {
 
             return ResponseEntity
                     .status(HttpStatus.UNAUTHORIZED)
-                    .body(new ApiResponse(
-                            "Invalid or expired refresh token"
-                    ));
+                    .body(ErrorResponse.of(HttpStatus.UNAUTHORIZED,
+                            "Invalid or expired refresh token", servletRequest));
         }
     }
     @GetMapping("/auth")
@@ -288,8 +296,14 @@ public class AuthController {
         }
 
         String token = authorization.substring(7);
-        tokenStore.remove(token);
-        log.info("Token removed from active session store");
+        String sessionId = tokenStore.sessionId(token);
+        if (sessionId != null) {
+            tokenStore.removeSession(sessionId);
+            log.info("All tokens removed from active session store");
+        } else {
+            tokenStore.remove(token);
+            log.info("Token removed from active session store");
+        }
 
         return ResponseEntity.ok(new ApiResponse("Logout successful"));
     }

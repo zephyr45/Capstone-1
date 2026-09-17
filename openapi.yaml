@@ -1,0 +1,168 @@
+openapi: 3.0.3
+info:
+  title: Smart Authentication Backend
+  version: 1.0.0
+  description: JWT authentication and dashboard API for the Capstone 1 frontend.
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: Authentication
+  - name: Dashboards
+paths:
+  /login:
+    post:
+      tags: [Authentication]
+      security: []
+      summary: Authenticate a hardcoded user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/LoginRequest'}
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LoginResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '423': {$ref: '#/components/responses/Locked'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /auth:
+    get:
+      tags: [Authentication]
+      summary: Return the authenticated user
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [authenticated, username, roles]
+                properties:
+                  authenticated: {type: boolean, example: true}
+                  username: {type: string, example: sachin}
+                  roles: {type: array, items: {type: string}, example: [USER]}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /refresh:
+    post:
+      tags: [Authentication]
+      summary: Rotate an active refresh token
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: New access/refresh token pair
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LoginResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /logout:
+    post:
+      tags: [Authentication]
+      summary: Revoke the current token session
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Session revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: {message: {type: string, example: Logout successful}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /user/dashboard:
+    get:
+      tags: [Dashboards]
+      summary: Return the user dashboard
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: User dashboard
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  policies: {type: integer, example: 2}
+                  claims: {type: integer, example: 2}
+                  profile: {type: string, example: Active}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /admin/dashboard:
+    get:
+      tags: [Dashboards]
+      summary: Return the admin dashboard
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Admin dashboard
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminDashboardResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: {type: string, example: sachin}
+        password: {type: string, format: password, example: sachin123}
+    LoginResponse:
+      type: object
+      required: [message, accessToken, refreshToken, username, roles]
+      properties:
+        message: {type: string}
+        accessToken: {type: string}
+        refreshToken: {type: string}
+        username: {type: string}
+        roles: {type: array, items: {type: string}}
+    AdminDashboardResponse:
+      type: object
+      properties:
+        welcomeMessage: {type: string}
+        totalUsers: {type: integer}
+        activeUsers: {type: integer}
+        totalPolicies: {type: integer}
+        activePolicies: {type: integer}
+        totalClaims: {type: integer}
+        pendingClaims: {type: integer}
+    ErrorResponse:
+      type: object
+      required: [timestamp, status, error, message, path]
+      properties:
+        timestamp: {type: string, format: date-time}
+        status: {type: integer}
+        error: {type: string}
+        message: {type: string}
+        path: {type: string}
+  responses:
+    BadRequest:
+      description: Invalid request
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    Unauthorized:
+      description: Authentication failed
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    Forbidden:
+      description: Insufficient role
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    Locked:
+      description: Account temporarily locked
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    RateLimited:
+      description: Login rate limit exceeded
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    Unavailable:
+      description: External authentication service unavailable
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}

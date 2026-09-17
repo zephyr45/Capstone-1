@@ -8,11 +8,15 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class InMemoryTokenRepository {
 
-    private final Map<String, String> activeTokens =
+    private final Map<String, TokenSession> activeTokens =
             new ConcurrentHashMap<>();
 
     public void save(String token, String username) {
-        activeTokens.put(token, username);
+        save(token, username, null);
+    }
+
+    public void save(String token, String username, String sessionId) {
+        activeTokens.put(token, new TokenSession(username, sessionId));
     }
 
     public boolean isActive(String token) {
@@ -20,10 +24,24 @@ public class InMemoryTokenRepository {
     }
 
     public String username(String token) {
-        return activeTokens.get(token);
+        TokenSession session = activeTokens.get(token);
+        return session == null ? null : session.username();
+    }
+
+    public String sessionId(String token) {
+        TokenSession session = activeTokens.get(token);
+        return session == null ? null : session.sessionId();
     }
 
     public void remove(String token) {
         activeTokens.remove(token);
     }
+
+    public void removeSession(String sessionId) {
+        if (sessionId != null) {
+            activeTokens.entrySet().removeIf(entry -> sessionId.equals(entry.getValue().sessionId()));
+        }
+    }
+
+    private record TokenSession(String username, String sessionId) {}
 }
