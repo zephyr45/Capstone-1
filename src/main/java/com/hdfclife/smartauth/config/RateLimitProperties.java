@@ -1,9 +1,11 @@
 package com.hdfclife.smartauth.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 
+@Component
 @ConfigurationProperties(prefix = "login.rate-limit")
 public class RateLimitProperties {
 
