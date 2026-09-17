@@ -18,6 +18,7 @@ Server:
 
 | Username | Password | Roles |
 |---|---|---|
+| user | password | USER |
 | sachin | sachin123 | USER |
 | admin | admin123 | USER, ADMIN |
 
@@ -28,7 +29,7 @@ Server:
 curl -X POST http://localhost:8080/login   -H "Content-Type: application/json"   -d '{"username":"sachin","password":"sachin123"}'
 ```
 
-Copy the `token` from the response.
+Copy the `accessToken` from the response.
 
 ### 2. Auth
 ```bash
@@ -52,19 +53,44 @@ A `sachin` token receives 403 here. An `admin` token can access it.
 curl -X POST http://localhost:8080/logout   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
-After logout, the same JWT is rejected because it has been removed from the in-memory TokenStore.
+After logout, the same JWT is rejected because it has been removed from the in-memory InMemoryTokenRepository.
 
 ## Architecture
 
-`Controller -> Spring Security Filter Chain -> JwtAuthenticationFilter -> JwtService + TokenStore`
+The Java code is under `com.hdfclife.smartauth` and is organized into:
+
+```text
+config/
+controller/
+service/
+repository/
+model/
+dto/request/
+dto/response/
+security/
+exception/
+resilience/
+util/
+```
+
+Login uses:
+
+`AuthController -> LoginRateLimiter -> ExternalLoginService -> LoginCircuitBreaker -> JwtTokenProvider -> InMemoryTokenRepository`
+
+Protected requests use:
+
+`Spring Security Filter Chain -> JwtAuthenticationFilter -> JwtTokenProvider + InMemoryTokenRepository`
 
 - JWT is signed with an HMAC secret.
 - JWT contains username, roles, issued-at and expiration.
-- `TokenStore` is the session/revocation layer.
+- `InMemoryTokenRepository` is the session/revocation layer.
 - Spring Security is stateless.
 - Role checks use `hasRole("USER")` / `hasRole("ADMIN")`.
 - Global exception handling uses `@RestControllerAdvice`.
 - SLF4J + Spring Boot's Logback setup logs requests, responses and errors.
+
+For a simple explanation of every refactor and the files that moved, see
+[`TASK4_INTEGRATION.md`](TASK4_INTEGRATION.md).
 
 ## Important
 

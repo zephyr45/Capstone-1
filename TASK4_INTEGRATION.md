@@ -1,10 +1,10 @@
-# Task4 Integration Documentation
+# Task4 Changes
 
-## Objective
+## What this work does
 
-Task4 starts from the existing `task3` branch and integrates the Task2 Resilience4j implementation without replacing the task3 authentication architecture.
+Task4 starts from the existing task3 branch. It keeps the task3 login, JWT, refresh-token, logout, dashboard, and security behavior. It adds the Task2 Resilience4j login protection.
 
-The resulting flow is:
+The login flow is now:
 
 ```text
 POST /login
@@ -12,156 +12,175 @@ POST /login
   -> LoginRateLimiter
   -> ExternalLoginService
   -> LoginCircuitBreaker
-  -> mock external login validation
-  -> existing JwtService
-  -> existing TokenStore
-  -> existing LoginResponse
+  -> mock external login check
+  -> JwtTokenProvider
+  -> InMemoryTokenRepository
+  -> LoginResponse
 ```
 
-Resilience4j is used only for the login/external-authentication dependency. JWT validation, protected endpoints, refresh tokens, logout, role authorization, dashboards, and token storage remain task3 responsibilities.
+The account-lockout check remains first because it was already part of task3. The rate limiter still runs before credential validation.
 
-## Task3 architecture preserved
+## Folder and package refactor
 
-The task3 application uses the `com.hdfc.jwtauth` package hierarchy and contains:
+The Java package root changed from:
 
-- `AuthController` for login, refresh, authentication, and logout.
-- `JwtService` for access-token and refresh-token generation and validation.
-- `TokenStore` for active in-memory token tracking and logout revocation.
-- `JwtAuthenticationFilter` for JWT extraction, verification, active-token checks, and authority creation.
-- `SecurityConfig` for public and protected endpoint rules.
-- `LoginAttemptService` for existing failed-login tracking and account lockout.
-- Existing dashboard, policy, claim, user, logging, and exception-handling components.
+```text
+com.hdfc.jwtauth
+```
 
-No parallel application package tree was introduced.
+to:
 
-## Changes added
+```text
+com.hdfclife.smartauth
+```
 
-### Resilience configuration
+Existing files were moved into the requested folders:
+
+| Old location or name | New location or name |
+|---|---|
+| `controllers` | `controller` |
+| `services` | `service` |
+| `entity` | `model` |
+| `exceptions` | `exception` |
+| `web/LoginRequest.java` | `dto/request/LoginRequest.java` |
+| `web/*Response.java` | `dto/response/` |
+| `JwtAuthApplication.java` | `SmartAuthApplication.java` |
+| `AdminDashBoardController.java` | `AdminDashboardController.java` |
+| `UserDashBoardController.java` | `DashboardController.java` |
+| `UserAccount.java` | `model/User.java` |
+| `InMemoryUserService.java` | `repository/InMemoryUserRepository.java` |
+| `InMemoryPolicyService.java` | `repository/InMemoryPolicyRepository.java` |
+| `InMemoryClaimService.java` | `repository/InMemoryClaimRepository.java` |
+| `security/TokenStore.java` | `repository/InMemoryTokenRepository.java` |
+| `services/JwtService.java` | `security/JwtTokenProvider.java` |
+| `logging/RequestLoggingFilter.java` | `util/RequestLoggingFilter.java` |
+
+Package declarations and imports were updated to match the new locations. The code inside these classes was not redesigned.
+
+## Resilience4j changes
+
+Added configuration classes:
+
+- `config/RateLimitProperties.java`
+- `config/CircuitBreakerProperties.java`
+- `config/ResilienceConfig.java`
+
+Added resilience classes:
+
+- `resilience/LoginRateLimiter.java`
+- `resilience/LoginCircuitBreaker.java`
+- `resilience/LoginFallbackHandler.java`
 
 Added:
 
-- `src/main/java/com/hdfc/jwtauth/config/RateLimitProperties.java`
-- `src/main/java/com/hdfc/jwtauth/config/CircuitBreakerProperties.java`
-- `src/main/java/com/hdfc/jwtauth/config/ResilienceConfig.java`
-
-The existing `pom.xml` already contained compatible Spring Cloud CircuitBreaker and Resilience4j dependencies, so it was not replaced or unnecessarily changed.
+- `service/ExternalLoginService.java`
+- `exception/RateLimitExceededException.java`
 
 ### Rate limiter
 
-Added `LoginRateLimiter` in:
+The limiter uses one bucket for each username and client IP address. It allows five requests per minute. A rejected request returns HTTP `429 Too Many Requests`.
 
-`src/main/java/com/hdfc/jwtauth/resilience/LoginRateLimiter.java`
+The real peer address is used. An untrusted `X-Forwarded-For` header is not accepted because it could be changed by a caller to bypass the limit.
 
-It maintains an independent Resilience4j limiter for each `username + client IP` pair. The configured limit is five requests per minute with no waiting. Rejected requests throw `RateLimitExceededException` and are returned as HTTP `429 Too Many Requests`.
+### Circuit breaker
 
-The client address uses `HttpServletRequest.getRemoteAddr()`. Untrusted `X-Forwarded-For` headers are not used, preventing callers from bypassing the limiter by supplying different header values.
+The circuit breaker protects the mock external login call.
 
-### Circuit breaker and fallback
+- External service failures count as circuit failures.
+- Invalid credentials do not count as circuit failures.
+- An open circuit does not call the external service.
+- External failures and open-circuit requests return HTTP `503 Service Unavailable`.
 
-Added:
+The mock behavior is unchanged:
 
-- `LoginCircuitBreaker`
-- `LoginFallbackHandler`
-- `ExternalLoginService`
+- `user / password` succeeds.
+- `serviceDown` simulates an external failure.
+- Existing task3 users continue to work with their existing passwords.
+- Other credentials return HTTP `401 Unauthorized`.
 
-The circuit breaker records `ExternalServiceException` failures and ignores `InvalidCredentialsException`. When the circuit is open, the external operation is not called and the request is converted into an external-service failure handled as HTTP `503 Service Unavailable`.
+## Existing functionality kept
 
-The mock external service supports:
+The following behavior was kept:
 
-- `user / password`: required mock credentials.
-- `serviceDown / anything`: simulated external-service failure.
-- Existing task3 users and their existing passwords: retained through a small adapter so task3 login behavior continues to work.
-- Other credentials: invalid credentials, returned as HTTP `401 Unauthorized`.
+- `POST /login`
+- `POST /refresh`
+- `GET /auth`
+- `POST /logout`
+- JWT signature and expiry validation
+- In-memory token storage and logout revocation
+- Role-based access for user and admin endpoints
+- Existing account lockout
+- Existing dashboard, policy, claim, and logging behavior
+- Existing API response shapes
 
-### Login integration
+The resilience classes do not create JWTs and do not store tokens. The existing token code still performs those jobs.
 
-`AuthController` was changed only at the login integration point:
+## Exception responses
 
-1. Existing account lockout is checked.
-2. The request is rate-limited.
-3. Credential validation is delegated to `ExternalLoginService`.
-4. Existing failed-attempt tracking is retained for invalid credentials.
-5. Existing `JwtService` generates the access and refresh tokens.
-6. Existing `TokenStore` stores both tokens.
-7. Existing `LoginResponse` is returned.
+| Error | Status |
+|---|---:|
+| Invalid credentials | 401 |
+| Rate limit exceeded | 429 |
+| External service failed | 503 |
+| Circuit breaker is open | 503 |
 
-Refresh, authentication, logout, and protected-resource behavior were not redesigned.
+The existing `GlobalExceptionHandler` was moved to the singular `exception` package and kept as the single exception handler.
 
-### Exception handling
+## Files changed by the folder refactor
 
-The existing `GlobalExceptionHandler` was extended with the rate-limit mapping. The final mappings are:
+All existing Java files were moved under `src/main/java/com/hdfclife/smartauth/`. The main folders are:
 
-| Exception | HTTP status | Meaning |
-|---|---:|---|
-| `InvalidCredentialsException` | 401 | Credentials are invalid |
-| `RateLimitExceededException` | 429 | Username/IP request limit exceeded |
-| `ExternalServiceException` | 503 | Mock service failed or circuit is open |
-
-## Configuration
-
-The existing `application.yml` was preserved and extended with:
-
-```yaml
-login:
-  rate-limit:
-    limit-for-period: 5
-    limit-refresh-period: 1m
-    timeout-duration: 0s
-
-  circuit-breaker:
-    failure-rate-threshold: 50
-    slow-call-rate-threshold: 100
-    wait-duration-in-open-state: 30s
-    slow-call-duration-threshold: 2s
-    permitted-number-of-calls-in-half-open-state: 3
-    minimum-number-of-calls: 5
-    sliding-window-size: 10
+```text
+config/
+controller/
+service/
+repository/
+model/
+dto/request/
+dto/response/
+security/
+exception/
+resilience/
+util/
 ```
 
-Existing server, application, logging, security, and JWT-related settings were retained.
+Tests were moved under:
 
-## Files modified
+```text
+src/test/java/com/hdfclife/smartauth/
+```
 
-- `src/main/java/com/hdfc/jwtauth/controllers/AuthController.java`
-- `src/main/java/com/hdfc/jwtauth/exceptions/GlobalExceptionHandler.java`
-- `src/main/java/com/hdfc/jwtauth/services/InMemoryUserService.java`
-- `src/main/resources/application.yml`
+The tests now use the new package names and are grouped under `controller/` and `resilience/`.
 
-`InMemoryUserService` was extended with the required `user/password` mock account. No existing task3 user was removed or changed.
+## Files intentionally not added
 
-## Files added
+The requested example tree contains some classes that did not exist in the original code, including `AuthService`, `JwtConfig`, `OpenApiConfig`, `DashboardService`, `ExternalServiceController`, `CustomUserDetails`, `SecurityUserService`, `Role`, `LogoutRequest`, and `ErrorResponse`.
 
-- Resilience configuration classes under `config/`.
-- Resilience components under `resilience/`.
-- `ExternalLoginService` under `services/`.
-- `RateLimitExceededException` under `exceptions/`.
-- `src/test/java/com/hdfc/jwtauth/AuthFlowIntegrationTest.java`.
-- `src/test/java/com/hdfc/jwtauth/resilience/LoginCircuitBreakerTest.java`.
-- `src/test/java/com/hdfc/jwtauth/resilience/LoginRateLimiterTest.java`.
+These files were not added as empty placeholders. Adding them would create unused code or require a business-logic redesign, which would conflict with the instruction to change only the folder structure.
 
-No files were moved or renamed.
+The existing equivalents were moved into the closest requested locations instead.
 
-## Verification performed
+## Configuration and dependencies
 
-`mvn test` passes all five tests. The tests cover:
+`application.yml` still contains the original server, logging, security, and resilience settings. The logging package name was updated to `com.hdfclife.smartauth`.
 
-- Spring context startup and bean wiring.
-- Existing login, JWT authentication, refresh, and logout flow.
-- Invalid credentials returning `401`.
-- External service failure returning `503`.
-- Per-username/IP rate limiting and `429` behavior.
-- Circuit breaker opening after external failures.
-- Open-circuit rejection without calling the protected dependency.
-- Invalid credentials being ignored by circuit-breaker failure metrics.
+`pom.xml` was not replaced. The existing Resilience4j dependencies were already sufficient.
 
-Manual smoke tests also confirmed successful login, token revocation after logout, invalid credentials, external-service failure, circuit-open fallback, and rate-limit rejection.
+## Verification
 
-## Branch and preservation status
+The following command passes:
+
+```bash
+mvn test
+```
+
+All five tests pass. They verify Spring startup, login, JWT authentication, refresh, logout, rate limiting, circuit opening, open-circuit rejection, and the 401/503 responses.
+
+## Git status
 
 - Base branch: `task3`
-- Result branch: `task4`
+- Working branch: `task4`
 - Repository: `https://github.com/zephyr45/Capstone1task1branch`
-- Task3 itself was not modified.
-- The final task4 branch contains task3 functionality plus the Task2 resilience integration.
+- Task3 was not changed.
 
-The in-memory token store and mock external service are intentional assignment behavior. In-memory state is cleared when the application restarts.
+This refactor changes file locations, package names, and structural class names only. It does not redesign the application behavior.
