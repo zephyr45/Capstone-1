@@ -20,24 +20,28 @@ public class ResilienceConfig {
 
     private final RateLimitProperties rateLimitProperties;
 
-    public ResilienceConfig(RateLimitProperties rateLimitProperties) {
+    private final CircuitBreakerProperties circuitBreakerProperties;
+
+    public ResilienceConfig(
+            RateLimitProperties rateLimitProperties,
+            CircuitBreakerProperties circuitBreakerProperties) {
         this.rateLimitProperties = rateLimitProperties;
+        this.circuitBreakerProperties = circuitBreakerProperties;
     }
 
     @Bean
     public CircuitBreaker externalLoginCircuitBreaker() {
 
         CircuitBreakerConfig config = CircuitBreakerConfig.custom()
-                .failureRateThreshold(50.0f)
-                .slowCallRateThreshold(100.0f)
-                .waitDurationInOpenState(Duration.ofSeconds(30))
-                .slowCallDurationThreshold(Duration.ofSeconds(2))
-                .permittedNumberOfCallsInHalfOpenState(3)
-                .minimumNumberOfCalls(5)
-                .slidingWindowSize(10)
-                .slidingWindowType(
-                        CircuitBreakerConfig.SlidingWindowType.COUNT_BASED
-                )
+                .failureRateThreshold(circuitBreakerProperties.getFailureRateThreshold())
+                .slowCallRateThreshold(circuitBreakerProperties.getSlowCallRateThreshold())
+                .waitDurationInOpenState(circuitBreakerProperties.getWaitDurationInOpenState())
+                .slowCallDurationThreshold(circuitBreakerProperties.getSlowCallDurationThreshold())
+                .permittedNumberOfCallsInHalfOpenState(
+                        circuitBreakerProperties.getPermittedNumberOfCallsInHalfOpenState())
+                .minimumNumberOfCalls(circuitBreakerProperties.getMinimumNumberOfCalls())
+                .slidingWindowSize(circuitBreakerProperties.getSlidingWindowSize())
+                .slidingWindowType(CircuitBreakerConfig.SlidingWindowType.COUNT_BASED)
                 .recordExceptions(ExternalServiceException.class)
                 .ignoreExceptions(InvalidCredentialsException.class)
                 .build();
