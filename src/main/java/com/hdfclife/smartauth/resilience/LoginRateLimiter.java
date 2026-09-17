@@ -60,15 +60,19 @@ public class LoginRateLimiter {
          * If it doesn't exist:
          *     create it and store it in the map.
          */
-        RateLimiter limiter = limiters.computeIfAbsent(key, k -> {
+        RateLimiter limiter = limiters.computeIfAbsent(
+        key,
+        keyFromMap -> createRateLimiter()
+);
 
-            logger.debug("Creating new rate limiter for key: {}", key);
+private RateLimiter createRateLimiter() {
+    logger.debug("Creating new rate limiter");
 
-            return RateLimiter.of(
-                    "login-" + System.nanoTime(),
-                    rateLimiterTemplate.getRateLimiterConfig()
-            );
-        });
+    return RateLimiter.of(
+            "login-" + System.nanoTime(),
+            rateLimiterTemplate.getRateLimiterConfig()
+    );
+}
 
         /*
          * Ask the RateLimiter for permission.
