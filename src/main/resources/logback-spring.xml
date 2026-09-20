@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- ============================= -->
+    <!-- LOG FILE LOCATION             -->
+    <!-- ============================= -->
+
+    <property name="LOG_DIR" value="logs"/>
+
+    <!-- ============================= -->
+    <!-- CONSOLE LOGGING               -->
+    <!-- ============================= -->
+
+    <appender name="STDOUT"
+              class="ch.qos.logback.core.ConsoleAppender">
+
+        <encoder>
+            <pattern>
+                %d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n
+            </pattern>
+        </encoder>
+
+    </appender>
+
+
+    <!-- ============================= -->
+    <!-- FILE LOGGING                  -->
+    <!-- ============================= -->
+
+    <appender name="FILE"
+              class="ch.qos.logback.core.rolling.RollingFileAppender">
+
+        <!-- Current log file -->
+        <file>${LOG_DIR}/application.log</file>
+
+        <encoder>
+            <pattern>
+                %d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n
+            </pattern>
+        </encoder>
+
+        <!-- ============================= -->
+        <!-- LOG ROTATION                   -->
+        <!-- ============================= -->
+
+        <rollingPolicy
+                class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+
+            <!-- New file every day + when it reaches 10 MB -->
+            <fileNamePattern>
+                ${LOG_DIR}/application.%d{yyyy-MM-dd}.%i.log.gz
+            </fileNamePattern>
+
+            <maxFileSize>10MB</maxFileSize>
+
+            <!-- Keep logs for 30 days -->
+            <maxHistory>30</maxHistory>
+
+            <!-- Maximum total log storage -->
+            <totalSizeCap>1GB</totalSizeCap>
+
+        </rollingPolicy>
+
+    </appender>
+
+
+    <!-- ============================= -->
+    <!-- YOUR APPLICATION LOGGING      -->
+    <!-- ============================= -->
+
+    <logger name="com.hdfc.jwtauth"
+            level="DEBUG"
+            additivity="false">
+
+        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="FILE"/>
+
+    </logger>
+
+
+    <!-- ============================= -->
+    <!-- SPRING FRAMEWORK              -->
+    <!-- ============================= -->
+
+    <logger name="org.springframework"
+            level="INFO"/>
+
+
+    <!-- ============================= -->
+    <!-- ROOT LOGGER                   -->
+    <!-- ============================= -->
+
+    <root level="INFO">
+
+        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="FILE"/>
+
+    </root>
+
+</configuration>

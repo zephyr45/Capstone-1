@@ -1,21 +1,29 @@
 spring:
   application:
-    name: smart-authentication-backend
-  mvc:
-    throw-exception-if-no-handler-found: true
+    name: jwt-auth
 
+  datasource:
+    url: jdbc:postgresql://localhost:5432/capstone_db
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
 server:
   port: 8080
-  error:
-    include-message: always
-    include-binding-errors: always
 
 logging:
   level:
     root: INFO
-    com.hdfclife.smartauth: DEBUG
+    com.hdfc.jwtauth: DEBUG
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %logger{36} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{36} - %msg%n"
 
 login:
   rate-limit:
@@ -31,3 +39,11 @@ login:
     permitted-number-of-calls-in-half-open-state: 3
     minimum-number-of-calls: 5
     sliding-window-size: 10
+app:
+  security:
+    cookie:
+      secure: false
+      same-site: Lax
+      domain:
+      access-token-name: ACCESS_TOKEN
+      refresh-token-name: REFRESH_TOKEN
