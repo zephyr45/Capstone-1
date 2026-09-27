@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: jwt-auth
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/capstone_db
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: 8080
+  address: 0.0.0.0
+
+logging:
+  level:
+    root: INFO
+    com.hdfc.jwtauth: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{36} - %msg%n"
+  file:
+    name: logs/application.log
+  logback:
+    rollingpolicy:
+      max-file-size: 10MB
+      max-history: 30
+      total-size-cap: 1GB
+
+login:
+  rate-limit:
+    limit-for-period: 5
+    limit-refresh-period: 1m
+    timeout-duration: 0s
+
+  circuit-breaker:
+    failure-rate-threshold: 50
+    slow-call-rate-threshold: 100
+    wait-duration-in-open-state: 30s
+    slow-call-duration-threshold: 2s
+    permitted-number-of-calls-in-half-open-state: 3
+    minimum-number-of-calls: 5
+    sliding-window-size: 10
+
+app:
+  security:
+    cookie:
+      secure: false
+      same-site: Lax
+      domain:
+      access-token-name: ACCESS_TOKEN
+      refresh-token-name: REFRESH_TOKEN
+
+jwt:
+  secret: ${JWT_SECRET}

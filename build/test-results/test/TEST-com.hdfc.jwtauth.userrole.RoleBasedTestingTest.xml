@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.hdfc.jwtauth.userrole.RoleBasedTestingTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-09-24T11:48:01.245Z" hostname="LT-67951" time="0.119">
+  <properties/>
+  <testcase name="shouldRejectUnauthenticatedUserFromProtectedEndpoints()" classname="com.hdfc.jwtauth.userrole.RoleBasedTestingTest" time="0.004"/>
+  <testcase name="shouldAllowAdminRoleToAccessAdminDashboard()" classname="com.hdfc.jwtauth.userrole.RoleBasedTestingTest" time="0.092"/>
+  <testcase name="shouldAllowAdminRoleToAccessUserDashboard()" classname="com.hdfc.jwtauth.userrole.RoleBasedTestingTest" time="0.005"/>
+  <testcase name="shouldAllowUserRoleToAccessUserDashboard()" classname="com.hdfc.jwtauth.userrole.RoleBasedTestingTest" time="0.003"/>
+  <testcase name="shouldDenyUserRoleFromAccessingAdminDashboard()" classname="com.hdfc.jwtauth.userrole.RoleBasedTestingTest" time="0.002"/>
+  <system-out><![CDATA[2026-09-24 17:18:01.246 INFO  [Test worker] o.s.t.c.s.AnnotationConfigContextLoaderUtils - Could not detect default configuration classes for test class [com.hdfc.jwtauth.userrole.RoleBasedTestingTest]: RoleBasedTestingTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-09-24 17:18:01.253 INFO  [Test worker] o.s.b.t.c.SpringBootTestContextBootstrapper - Found @SpringBootConfiguration com.hdfc.jwtauth.JwtAuthApplication for test class com.hdfc.jwtauth.userrole.RoleBasedTestingTest
+2026-09-24 17:18:01.262 DEBUG [Test worker] c.h.j.s.JwtAuthenticationFilter - JWT authentication successful username=admin
+2026-09-24 17:18:01.262 INFO  [Test worker] c.h.j.logging.RequestLoggingFilter - REQUEST GET /admin/dashboard
+Hibernate: 
+    select
+        count(*) 
+    from
+        users u1_0
+Hibernate: 
+    select
+        count(u1_0.id) 
+    from
+        users u1_0 
+    where
+        u1_0.active
+2026-09-24 17:18:01.351 INFO  [Test worker] c.h.j.logging.RequestLoggingFilter - RESPONSE GET /admin/dashboard -> 200 (89 ms)
+2026-09-24 17:18:01.355 DEBUG [Test worker] c.h.j.s.JwtAuthenticationFilter - JWT authentication successful username=admin
+2026-09-24 17:18:01.355 INFO  [Test worker] c.h.j.logging.RequestLoggingFilter - REQUEST GET /user/dashboard
+2026-09-24 17:18:01.356 INFO  [Test worker] c.h.j.logging.RequestLoggingFilter - RESPONSE GET /user/dashboard -> 200 (1 ms)
+2026-09-24 17:18:01.360 DEBUG [Test worker] c.h.j.s.JwtAuthenticationFilter - JWT authentication successful username=user
+2026-09-24 17:18:01.360 INFO  [Test worker] c.h.j.logging.RequestLoggingFilter - REQUEST GET /user/dashboard
+2026-09-24 17:18:01.360 INFO  [Test worker] c.h.j.logging.RequestLoggingFilter - RESPONSE GET /user/dashboard -> 200 (0 ms)
+2026-09-24 17:18:01.363 DEBUG [Test worker] c.h.j.s.JwtAuthenticationFilter - JWT authentication successful username=user
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

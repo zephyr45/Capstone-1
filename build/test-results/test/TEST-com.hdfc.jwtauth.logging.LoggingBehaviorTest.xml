@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.hdfc.jwtauth.logging.LoggingBehaviorTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-09-24T11:48:01.084Z" hostname="LT-67951" time="0.02">
+  <properties/>
+  <testcase name="logsRequestAndResponseForACompletedRequest(CapturedOutput)" classname="com.hdfc.jwtauth.logging.LoggingBehaviorTest" time="0.02"/>
+  <system-out><![CDATA[2026-09-24 17:18:01.085 INFO  [Test worker] c.h.j.logging.RequestLoggingFilter - REQUEST GET /api/v1/test/circuit-state
+2026-09-24 17:18:01.085 INFO  [Test worker] c.h.j.logging.RequestLoggingFilter - RESPONSE GET /api/v1/test/circuit-state -> 200 (0 ms)
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
