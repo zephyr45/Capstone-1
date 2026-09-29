@@ -853,8 +853,10 @@ Restart PostgreSQL and wait at least 30 seconds:
 Start-Service -Name '<postgres-service-name>'
 ```
 
-The state endpoint reports `HALF_OPEN`. Three successful login requests are the
-configured recovery probes; after they succeed, the state returns to `CLOSED`.
+The state endpoint reports `HALF_OPEN`. If the six-request login rate-limit window
+has not reset yet, wait until one minute has elapsed from the first request. Then
+send three successful login requests; these are the configured recovery probes,
+and after they succeed, the state returns to `CLOSED`.
 There is intentionally no endpoint that stops or simulates failure of the database.
 
 ---
