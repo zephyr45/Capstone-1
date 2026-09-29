@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema } from "@/validations/authValidation";
 import { loginUser } from "@/services/authService";
+import { getApiErrorMessage } from "@/services/apiError";
 import { toast } from "sonner";
 import {Eye, EyeOff} from "lucide-react";
 
@@ -210,9 +211,7 @@ const onSubmit = async (data) => {
 
         const status = error.response?.status;
 
-        const backendMessage =
-            error.response?.data?.message ||
-            error.response?.data?.error;
+        const backendMessage = getApiErrorMessage(error, "");
 
         let errorMessage;
         if (!error.response) {
@@ -257,12 +256,14 @@ const onSubmit = async (data) => {
         else if (status === 503) {
 
             errorMessage =
+                backendMessage ||
                 "Authentication service is temporarily unavailable. Please try again later.";
         }
 
         else if (status >= 500) {
 
             errorMessage =
+                backendMessage ||
                 "Something went wrong on the server. Please try again later.";
         }
 
@@ -401,7 +402,7 @@ const onSubmit = async (data) => {
                                     aria-invalid={!!errors.username}
                                 />
                                 {errors.username && (
-                                    <p className="text-sm text-red-600">
+                                    <p role="alert" className="text-sm text-red-600">
                                         {errors.username.message}
                                     </p>
                                 )}
@@ -437,7 +438,7 @@ const onSubmit = async (data) => {
                                     )}
                                 </button>
                                 {errors.password && (
-                                    <p className="text-sm text-red-600">
+                                    <p role="alert" className="text-sm text-red-600">
                                         {errors.password.message}
                                     </p>
                                 )}

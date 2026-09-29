@@ -3,8 +3,9 @@ import AdminDashboard from "@/app/admin/dashboard/page";
 import { getAdminDashboardData } from "@/services/dashboardService";
 
 jest.mock("next/image", () => {
-    function MockImage({ priority, ...props }) {
-        return <img {...props} />;
+    function MockImage({ priority, alt = "", ...props }) {
+        // eslint-disable-next-line @next/next/no-img-element
+        return <img alt={alt} {...props} />;
     }
     MockImage.displayName = "MockImage";
     return MockImage;
@@ -62,12 +63,18 @@ describe("Admin dashboard", () => {
     });
 
     test("shows an error when admin data loading fails", async () => {
-        getAdminDashboardData.mockRejectedValue(new Error("Request failed"));
+        getAdminDashboardData.mockRejectedValue({
+            response: {
+                data: {
+                    message: "Database unavailable",
+                },
+            },
+        });
 
         render(<AdminDashboard />);
 
         expect(
-            await screen.findByText("Failed to load dashboard data.")
+            await screen.findByText("Database unavailable")
         ).toBeInTheDocument();
     });
 });

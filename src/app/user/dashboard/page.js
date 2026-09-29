@@ -9,23 +9,31 @@ import AuthGuard from "@/components/AuthGuard";
 import InactivityTimer from "@/components/InactivityTimer";
 
 import { getUserDashboardData } from "@/services/dashboardService";
+import { getApiErrorMessage } from "@/services/apiError";
 
 export default function UserDashboard() {
     const { user } = useSelector((state) => state.auth);
 
     const [dashboardData, setDashboardData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
 
     useEffect(() => {
         async function fetchDashboardData() {
             try {
+                setError("");
                 const data = await getUserDashboardData();
-                console.log("Dashboard API response:", data);
                 setDashboardData(data);
-            } catch (error) {
+            } catch (requestError) {
                 console.error(
                     "Failed to fetch dashboard data:",
-                    error
+                    requestError
+                );
+                setError(
+                    getApiErrorMessage(
+                        requestError,
+                        "Failed to load dashboard data."
+                    )
                 );
             } finally {
                 setLoading(false);
@@ -75,6 +83,10 @@ export default function UserDashboard() {
                         <p className="text-gray-600">
                             Loading dashboard...
                         </p>
+                    ) : error ? (
+                        <p role="alert" className="text-red-600">
+                            {error}
+                        </p>
                     ) : dashboardData ? (
                         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                             <DashboardCard
@@ -92,11 +104,7 @@ export default function UserDashboard() {
                                 value={dashboardData.profile}
                             />
                         </div>
-                    ) : (
-                        <p className="text-red-600">
-                            Failed to load dashboard data.
-                        </p>
-                    )}
+                    ) : null}
                 </section>
             </main>
         </AuthGuard>

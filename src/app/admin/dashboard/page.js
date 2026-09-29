@@ -9,22 +9,31 @@ import AuthGuard from "@/components/AuthGuard";
 import InactivityTimer from "@/components/InactivityTimer";
 
 import { getAdminDashboardData } from "@/services/dashboardService";
+import { getApiErrorMessage } from "@/services/apiError";
 
 export default function AdminDashboard() {
     const { user } = useSelector((state) => state.auth);
 
     const [dashboardData, setDashboardData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
 
     useEffect(() => {
         async function fetchDashboardData() {
             try {
+                setError("");
                 const data = await getAdminDashboardData();
                 setDashboardData(data);
-            } catch (error) {
+            } catch (requestError) {
                 console.error(
                     "Failed to fetch admin dashboard data:",
-                    error
+                    requestError
+                );
+                setError(
+                    getApiErrorMessage(
+                        requestError,
+                        "Failed to load dashboard data."
+                    )
                 );
             } finally {
                 setLoading(false);
@@ -85,6 +94,10 @@ export default function AdminDashboard() {
                         <p className="text-gray-600">
                             Loading dashboard...
                         </p>
+                    ) : error ? (
+                        <p role="alert" className="text-red-600">
+                            {error}
+                        </p>
                     ) : dashboardData ? (
                         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                             {dashboardCards.map(([title, value]) => (
@@ -95,11 +108,7 @@ export default function AdminDashboard() {
                                 />
                             ))}
                         </div>
-                    ) : (
-                        <p className="text-red-600">
-                            Failed to load dashboard data.
-                        </p>
-                    )}
+                    ) : null}
                 </section>
             </main>
         </AuthGuard>

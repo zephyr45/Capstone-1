@@ -1,10 +1,11 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import Signup from "@/app/signup/signup";
+import Signup from "@/app/signup/page";
 import { signupUser } from "@/services/authService";
 
 jest.mock("next/image", () => {
-    function MockImage({ priority, ...props }) {
-        return <img {...props} />;
+    function MockImage({ priority, alt = "", ...props }) {
+        // eslint-disable-next-line @next/next/no-img-element
+        return <img alt={alt} {...props} />;
     }
     MockImage.displayName = "MockImage";
     return MockImage;

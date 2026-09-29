@@ -3,8 +3,9 @@ import UserDashboard from "@/app/user/dashboard/page";
 import { getUserDashboardData } from "@/services/dashboardService";
 
 jest.mock("next/image", () => {
-    function MockImage({ priority, ...props }) {
-        return <img {...props} />;
+    function MockImage({ priority, alt = "", ...props }) {
+        // eslint-disable-next-line @next/next/no-img-element
+        return <img alt={alt} {...props} />;
     }
     MockImage.displayName = "MockImage";
     return MockImage;
@@ -59,12 +60,18 @@ describe("User dashboard", () => {
     });
 
     test("shows an error when dashboard loading fails", async () => {
-        getUserDashboardData.mockRejectedValue(new Error("Request failed"));
+        getUserDashboardData.mockRejectedValue({
+            response: {
+                data: {
+                    message: "Database circuit breaker is OPEN",
+                },
+            },
+        });
 
         render(<UserDashboard />);
 
         expect(
-            await screen.findByText("Failed to load dashboard data.")
+            await screen.findByText("Database circuit breaker is OPEN")
         ).toBeInTheDocument();
     });
 });

@@ -10,20 +10,30 @@ describe("Authentication validation", () => {
         ).toBe(true);
     });
 
-    test("rejects usernames outside the 4-20 character contract", () => {
+    test("matches the backend username length contract", () => {
         expect(
             signupSchema.safeParse({
                 username: "abc",
                 password: "Tejas@123",
                 confirmPassword: "Tejas@123",
             }).success
-        ).toBe(false);
+        ).toBe(true);
 
         expect(
             signupSchema.safeParse({
-                username: "a".repeat(21),
+                username: "a".repeat(51),
                 password: "Tejas@123",
                 confirmPassword: "Tejas@123",
+            }).success
+        ).toBe(false);
+    });
+
+    test("matches the backend password character contract", () => {
+        expect(
+            signupSchema.safeParse({
+                username: "tejas",
+                password: "Tejas123?",
+                confirmPassword: "Tejas123?",
             }).success
         ).toBe(false);
     });

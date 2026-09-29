@@ -9,19 +9,15 @@ const API_ROUTES = {
   },
 
   user: {
-    dashboard: "/api/v1/auth/user/dashboard",
-    profile: "/api/v1/auth/user/profile",
+    dashboard: "/user/dashboard",
   },
 
   admin: {
-    dashboard: "/api/v1/auth/admin/dashboard",
+    dashboard: "/admin/dashboard",
   },
 
   test: {
     circuitState: "/api/v1/test/circuit-state",
-    external: "/api/v1/test/external",
-    externalServiceFail: "/api/v1/test/external-service/fail",
-
   },
 };
 

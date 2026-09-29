@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { signupUser } from "@/services/authService";
+import { getApiErrorMessage } from "@/services/apiError";
 import { signupSchema } from "@/validations/authValidation";
 import {Eye, EyeOff} from "lucide-react";
 
@@ -79,12 +80,17 @@ export default function Signup() {
                 );
             } else if (status === 409) {
                 setApiError(
-                    "Username already exists. Please choose another username."
+                    getApiErrorMessage(
+                        requestError,
+                        "Username already exists. Please choose another username."
+                    )
                 );
             } else {
                 setApiError(
-                    requestError.response?.data?.message ||
-                    "Unable to create your account. Please try again."
+                    getApiErrorMessage(
+                        requestError,
+                        "Unable to create your account. Please try again."
+                    )
                 );
             }
         }
@@ -209,7 +215,7 @@ export default function Signup() {
                                 </p>
 
                                 {errors.username && (
-                                    <p className="text-sm text-red-600">
+                                    <p role="alert" className="text-sm text-red-600">
                                         {errors.username.message}
                                     </p>
                                 )}
@@ -250,7 +256,7 @@ export default function Signup() {
                                 </p>
 
                                 {errors.password && (
-                                    <p className="text-sm text-red-600">
+                                    <p role="alert" className="text-sm text-red-600">
                                         {errors.password.message}
                                     </p>
                                 )}
@@ -287,7 +293,7 @@ export default function Signup() {
                                 </button>
 
                                 {errors.confirmPassword && (
-                                    <p className="text-sm text-red-600">
+                                    <p role="alert" className="text-sm text-red-600">
                                         {errors.confirmPassword.message}
                                     </p>
                                 )}
