@@ -256,7 +256,6 @@ const onSubmit = async (data) => {
         else if (status === 503) {
 
             errorMessage =
-                backendMessage ||
                 "Authentication service is temporarily unavailable. Please try again later.";
         }
 
