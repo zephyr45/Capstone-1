@@ -1,6 +1,8 @@
 package com.hdfc.jwtauth.services;
 
 import com.hdfc.jwtauth.entity.User;
+import com.hdfc.jwtauth.exceptions.DuplicateUsernameException;
+import com.hdfc.jwtauth.exceptions.PasswordMismatchException;
 import com.hdfc.jwtauth.repository.UserRepository;
 import com.hdfc.jwtauth.web.RegisterRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,16 +26,12 @@ public class UserService {
 
         // 1. Confirm password
         if (!request.password().equals(request.confirmPassword())) {
-            throw new IllegalArgumentException(
-                    "Passwords do not match"
-            );
+            throw new PasswordMismatchException("Passwords do not match");
         }
 
         // 2. Check username
         if (userRepository.existsByUsername(request.username())) {
-            throw new IllegalArgumentException(
-                    "Username already exists"
-            );
+            throw new DuplicateUsernameException("Username already exists");
         }
 
         // 3. Hash password

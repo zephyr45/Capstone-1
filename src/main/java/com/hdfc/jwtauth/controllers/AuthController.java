@@ -1,4 +1,5 @@
 package com.hdfc.jwtauth.controllers;
+import com.hdfc.jwtauth.services.UserService;
 import io.swagger.v3.oas.annotations.*;
 import com.hdfc.jwtauth.entity.User;
 import com.hdfc.jwtauth.exceptions.InvalidCredentialsException;
@@ -52,6 +53,7 @@ public class AuthController {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final UserService userService;
 
 
     public AuthController(
@@ -62,7 +64,8 @@ public class AuthController {
             TokenStore tokenStore,
             ExternalLoginService externalLoginService,
             UserRepository userRepository,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            UserService userService
     ) {
 
         this.loginRateLimiter = loginRateLimiter;
@@ -73,6 +76,7 @@ public class AuthController {
         this.externalLoginService = externalLoginService;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.userService=userService;
     }
 
 
@@ -111,70 +115,12 @@ public class AuthController {
             @Valid @RequestBody RegisterRequest request
     ) {
 
-        // --------------------------------
-        // Confirm password
-        // --------------------------------
-
-        if (!request.password()
-                .equals(request.confirmPassword())) {
-
-            return ResponseEntity
-                    .badRequest()
-                    .body(new ApiResponse(
-                            "Passwords do not match"
-                    ));
-        }
-
-
-        // --------------------------------
-        // Check username
-        // --------------------------------
-
-        if (userRepository.existsByUsername(
-                request.username())) {
-
-            return ResponseEntity
-                    .status(HttpStatus.CONFLICT)
-                    .body(new ApiResponse(
-                            "Username already exists"
-                    ));
-        }
-
-
-        // --------------------------------
-        // Hash password
-        // --------------------------------
-
-        String encodedPassword =
-                passwordEncoder.encode(
-                        request.password()
-                );
-
-
-        // --------------------------------
-        // Create USER account
-        // --------------------------------
-
-        User user = new User(
-                request.username(),
-                encodedPassword,
-                "USER",
-                true
-        );
-
-
-        // --------------------------------
-        // Save to PostgreSQL
-        // --------------------------------
-
-        userRepository.save(user);
-
+        userService.register(request);
 
         log.info(
                 "SIGNUP_SUCCESS username={}",
                 request.username()
         );
-
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -182,12 +128,6 @@ public class AuthController {
                         "Account created successfully"
                 ));
     }
-
-
-    // ============================================================
-    // LOGIN
-    // ============================================================
-
     @PostMapping("/login")
     @Operation(
             summary = "Authenticate user",

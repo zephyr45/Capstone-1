@@ -1,4 +1,4 @@
-package com.hdfc.jwtauth.resilience;
+package com.hdfc.jwtauth.resilience.ratelimiter;
 
 import com.hdfc.jwtauth.controllers.AuthController;
 import com.hdfc.jwtauth.entity.User;
@@ -8,10 +8,11 @@ import com.hdfc.jwtauth.resilience.LoginCircuitBreaker;
 import com.hdfc.jwtauth.resilience.LoginFallbackHandler;
 import com.hdfc.jwtauth.resilience.LoginRateLimiter;
 import com.hdfc.jwtauth.security.CookieService;
+import com.hdfc.jwtauth.services.JwtService;
 import com.hdfc.jwtauth.security.TokenStore;
 import com.hdfc.jwtauth.services.ExternalLoginService;
-import com.hdfc.jwtauth.services.JwtService;
 import com.hdfc.jwtauth.services.LoginAttemptService;
+import com.hdfc.jwtauth.services.UserService;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.ratelimiter.RateLimiterConfig;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +38,10 @@ class LoginRateLimiterTest {
     @BeforeEach
     void setUp() {
 
+        // ============================================================
+        // USER
+        // ============================================================
+
         User user = new User(
                 "user",
                 "encoded-password",
@@ -44,21 +49,55 @@ class LoginRateLimiterTest {
                 true
         );
 
-        UserRepository userRepository = mock(UserRepository.class);
+
+        // ============================================================
+        // USER REPOSITORY
+        // ============================================================
+
+        UserRepository userRepository =
+                mock(UserRepository.class);
 
         when(userRepository.findByUsername("user"))
                 .thenReturn(Optional.of(user));
 
-        PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+
+        // ============================================================
+        // PASSWORD ENCODER
+        // ============================================================
+
+        PasswordEncoder passwordEncoder =
+                mock(PasswordEncoder.class);
 
         when(passwordEncoder.matches(
                 "password",
                 "encoded-password"
         )).thenReturn(true);
 
-        // JwtService is created manually in this standalone test,
-        // so Spring @Value injection does not happen automatically.
-        JwtService jwtService = new JwtService();
+
+        // ============================================================
+        // USER SERVICE
+        //
+        // AuthController now uses UserService for signup.
+        // Login still uses UserRepository and PasswordEncoder
+        // directly, so all three dependencies are provided.
+        // ============================================================
+
+        UserService userService =
+                new UserService(
+                        userRepository,
+                        passwordEncoder
+                );
+
+
+        // ============================================================
+        // JWT SERVICE
+        //
+        // Standalone MockMvc does not load Spring @Value properties.
+        // Therefore, set the JWT secret manually.
+        // ============================================================
+
+        JwtService jwtService =
+                new JwtService();
 
         ReflectionTestUtils.setField(
                 jwtService,
@@ -66,7 +105,13 @@ class LoginRateLimiterTest {
                 "test-secret-key-must-be-at-least-32-bytes-long-123456"
         );
 
-        CookieService cookieService = new CookieService();
+
+        // ============================================================
+        // COOKIE SERVICE
+        // ============================================================
+
+        CookieService cookieService =
+                new CookieService();
 
         ReflectionTestUtils.setField(
                 cookieService,
@@ -86,8 +131,18 @@ class LoginRateLimiterTest {
                 "REFRESH_TOKEN"
         );
 
+
+        // ============================================================
+        // LOGIN ATTEMPT SERVICE
+        // ============================================================
+
         LoginAttemptService loginAttemptService =
                 new LoginAttemptService();
+
+
+        // ============================================================
+        // EXTERNAL LOGIN SERVICE
+        // ============================================================
 
         ExternalLoginService externalLoginService =
                 new ExternalLoginService(
@@ -99,8 +154,14 @@ class LoginRateLimiterTest {
                         new LoginFallbackHandler()
                 );
 
-        // Create a completely isolated rate limiter
-        // for every test method.
+
+        // ============================================================
+        // RATE LIMITER
+        //
+        // Allow 5 requests per minute.
+        // Sixth request should return 429.
+        // ============================================================
+
         LoginRateLimiter rateLimiter =
                 new LoginRateLimiter(
                         RateLimiterConfig.custom()
@@ -112,6 +173,15 @@ class LoginRateLimiterTest {
                                 .build()
                 );
 
+
+        // ============================================================
+        // AUTH CONTROLLER
+        //
+        // IMPORTANT:
+        // This order exactly matches your current AuthController
+        // constructor.
+        // ============================================================
+
         AuthController controller =
                 new AuthController(
                         rateLimiter,
@@ -121,22 +191,43 @@ class LoginRateLimiterTest {
                         new TokenStore(),
                         externalLoginService,
                         userRepository,
-                        passwordEncoder
+                        passwordEncoder,
+                        userService
                 );
 
-        this.mockMvc = standaloneSetup(controller)
-                .setControllerAdvice(new GlobalExceptionHandler())
-                .build();
+
+        // ============================================================
+        // MOCK MVC
+        // ============================================================
+
+        this.mockMvc =
+                standaloneSetup(controller)
+                        .setControllerAdvice(
+                                new GlobalExceptionHandler()
+                        )
+                        .build();
     }
 
+
+    // ============================================================
+    // TEST 1
+    // Request within rate limit should succeed
+    // ============================================================
+
     @Test
-    void shouldAllowRequestWithinRateLimit() throws Exception {
+    void shouldAllowRequestWithinRateLimit()
+            throws Exception {
 
         mockMvc.perform(
                         post("/api/v1/auth/login")
                                 .contentType("application/json")
                                 .content(
-                                        "{\"username\":\"user\",\"password\":\"password\"}"
+                                        """
+                                        {
+                                            "username": "user",
+                                            "password": "password"
+                                        }
+                                        """
                                 )
                 )
                 .andExpect(status().isOk())
@@ -146,14 +237,29 @@ class LoginRateLimiterTest {
                 );
     }
 
+
+    // ============================================================
+    // TEST 2
+    // Sixth request should be rejected
+    // ============================================================
+
     @Test
     void shouldReturnRateLimitResponseWhenLimitIsExceeded()
             throws Exception {
 
         String requestBody =
-                "{\"username\":\"user\",\"password\":\"password\"}";
+                """
+                {
+                    "username": "user",
+                    "password": "password"
+                }
+                """;
 
+
+        // --------------------------------------------------------
         // Requests 1 to 5 should succeed.
+        // --------------------------------------------------------
+
         for (int attempt = 0; attempt < 5; attempt++) {
 
             mockMvc.perform(
@@ -164,7 +270,11 @@ class LoginRateLimiterTest {
                     .andExpect(status().isOk());
         }
 
+
+        // --------------------------------------------------------
         // Request 6 should exceed the rate limit.
+        // --------------------------------------------------------
+
         mockMvc.perform(
                         post("/api/v1/auth/login")
                                 .contentType("application/json")
@@ -179,6 +289,12 @@ class LoginRateLimiterTest {
                 );
     }
 
+
+    // ============================================================
+    // TEST 3
+    // Invalid password should remain 401
+    // ============================================================
+
     @Test
     void shouldKeepInvalidPasswordAsUnauthorized()
             throws Exception {
@@ -187,13 +303,20 @@ class LoginRateLimiterTest {
                         post("/api/v1/auth/login")
                                 .contentType("application/json")
                                 .content(
-                                        "{\"username\":\"user\",\"password\":\"wrong\"}"
+                                        """
+                                        {
+                                            "username": "user",
+                                            "password": "wrong"
+                                        }
+                                        """
                                 )
                 )
                 .andExpect(status().isUnauthorized())
                 .andExpect(
                         jsonPath("$.message")
-                                .value("Invalid username or password")
+                                .value(
+                                        "Invalid username or password"
+                                )
                 );
     }
 }

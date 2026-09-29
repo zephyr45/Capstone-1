@@ -1,5 +1,6 @@
 package com.hdfc.jwtauth.exceptions;
 
+import com.hdfc.jwtauth.web.ApiResponse;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.ratelimiter.RequestNotPermitted;
 import jakarta.servlet.http.HttpServletRequest;
@@ -98,6 +99,22 @@ public class GlobalExceptionHandler {
         log.warn("Circuit breaker open for {} {}", request.getMethod(), request.getRequestURI());
         return buildResponse(HttpStatus.SERVICE_UNAVAILABLE,
                 "Authentication is temporarily unavailable. Please try again later.", request);
+    }
+    @ExceptionHandler(DuplicateUsernameException.class)
+    public ResponseEntity<ApiResponse> handleDuplicateUsername(
+            DuplicateUsernameException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(new ApiResponse(ex.getMessage()));
+    }
+    @ExceptionHandler(PasswordMismatchException.class)
+    public ResponseEntity<ApiResponse> handlePasswordMismatch(
+            PasswordMismatchException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse(ex.getMessage()));
     }
 
     @ExceptionHandler(Exception.class)
