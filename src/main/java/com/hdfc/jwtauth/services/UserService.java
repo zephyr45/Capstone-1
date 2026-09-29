@@ -6,7 +6,6 @@ import com.hdfc.jwtauth.exceptions.DuplicateUsernameException;
 import com.hdfc.jwtauth.exceptions.PasswordMismatchException;
 import com.hdfc.jwtauth.repository.UserRepository;
 import com.hdfc.jwtauth.web.RegisterRequest;
-import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import jakarta.persistence.PersistenceException;
 import org.slf4j.Logger;
@@ -87,13 +86,6 @@ public class UserService {
     private Optional<User> databaseFallback(
             String username,
             PersistenceException exception
-    ) {
-        throw databaseUnavailable(username, exception);
-    }
-
-    private Optional<User> databaseFallback(
-            String username,
-            CallNotPermittedException exception
     ) {
         throw databaseUnavailable(username, exception);
     }

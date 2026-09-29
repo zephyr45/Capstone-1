@@ -79,7 +79,9 @@ class DatabaseCircuitBreakerTest {
                 .thenThrow(new DataAccessResourceFailureException("database down"));
 
         for (int attempt = 0; attempt < 5; attempt++) {
-            performLogin().andExpect(status().isServiceUnavailable());
+            performLogin()
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("$.message").value("Database unavailable"));
         }
 
         assertEquals(CircuitBreaker.State.OPEN, circuitBreaker.getState());
@@ -87,7 +89,7 @@ class DatabaseCircuitBreakerTest {
         performLogin()
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.message")
-                        .value("Database is temporarily unavailable. Please try again later."));
+                        .value("Database circuit breaker is OPEN"));
         verify(userRepository, times(5)).findByUsername("sachin");
     }
 

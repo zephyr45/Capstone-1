@@ -40,7 +40,7 @@ class GlobalExceptionHandlerTest {
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.status").value(503))
                 .andExpect(jsonPath("$.message")
-                        .value("Database is temporarily unavailable. Please try again later."))
+                        .value("Database unavailable"))
                 .andExpect(jsonPath("$.path").value("/test/database-failure"));
     }
 

@@ -5,9 +5,12 @@ import io.github.resilience4j.ratelimiter.RateLimiter;
 import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Duration;
@@ -19,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
 @ActiveProfiles("test")
+@ExtendWith(OutputCaptureExtension.class)
 class LoginRateLimitGuardTest {
 
     @Autowired
@@ -44,7 +48,7 @@ class LoginRateLimitGuardTest {
     void limitsOneIpAcrossRotatingUsernames() {
         String ip = "192.0.2.10";
 
-        for (int attempt = 0; attempt < 5; attempt++) {
+        for (int attempt = 0; attempt < 6; attempt++) {
             String username = "user-" + attempt;
             assertDoesNotThrow(() -> guard.checkIp(ip));
             assertDoesNotThrow(() -> guard.checkUsername(username));
@@ -58,9 +62,11 @@ class LoginRateLimitGuardTest {
 
     @Test
     void limitsOneNormalizedUsernameAcrossRotatingIps() {
-        String[] usernameVariants = {" Alice ", "alice", "ALICE", "aLiCe", " alice", "ALIce "};
+        String[] usernameVariants = {
+                " Alice ", "alice", "ALICE", "aLiCe", " alice", "ALIce ", "aLICE"
+        };
 
-        for (int attempt = 0; attempt < 5; attempt++) {
+        for (int attempt = 0; attempt < 6; attempt++) {
             String ip = "198.51.100." + attempt;
             assertDoesNotThrow(() -> guard.checkIp(ip));
             String username = usernameVariants[attempt];
@@ -69,7 +75,25 @@ class LoginRateLimitGuardTest {
 
         assertDoesNotThrow(() -> guard.checkIp("198.51.100.99"));
         assertThrows(RateLimitExceededException.class,
-                () -> guard.checkUsername(usernameVariants[5]));
+                () -> guard.checkUsername(usernameVariants[6]));
+    }
+
+    @Test
+    void logsSuccessfulAndRejectedRateLimitChecks(CapturedOutput output) {
+        String ip = "192.0.2.25";
+
+        for (int attempt = 0; attempt < 6; attempt++) {
+            guard.checkIp(ip);
+        }
+        guard.checkUsername("Alice");
+        assertThrows(RateLimitExceededException.class, () -> guard.checkIp(ip));
+
+        assertTrue(output.getAll().contains(
+                "Login IP rate limit check passed for ip=192.0.2.25"));
+        assertTrue(output.getAll().contains(
+                "Login username rate limit check passed for username=alice"));
+        assertTrue(output.getAll().contains(
+                "Login IP rate limit exceeded for ip=192.0.2.25"));
     }
 
     @Test
@@ -98,7 +122,7 @@ class LoginRateLimitGuardTest {
     }
 
     private void assertLimiterConfiguration(RateLimiter rateLimiter) {
-        assertEquals(5, rateLimiter.getRateLimiterConfig().getLimitForPeriod());
+        assertEquals(6, rateLimiter.getRateLimiterConfig().getLimitForPeriod());
         assertEquals(Duration.ofMinutes(1),
                 rateLimiter.getRateLimiterConfig().getLimitRefreshPeriod());
         assertEquals(Duration.ZERO, rateLimiter.getRateLimiterConfig().getTimeoutDuration());

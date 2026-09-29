@@ -73,7 +73,7 @@ public class GlobalExceptionHandler {
 
         log.error("Database unavailable on {} {}", request.getMethod(), request.getRequestURI(), ex);
         return buildResponse(HttpStatus.SERVICE_UNAVAILABLE,
-                "Database is temporarily unavailable. Please try again later.", request);
+                "Database unavailable", request);
     }
 
     @ExceptionHandler(RequestNotPermitted.class)
@@ -98,7 +98,7 @@ public class GlobalExceptionHandler {
 
         log.warn("Circuit breaker open for {} {}", request.getMethod(), request.getRequestURI());
         return buildResponse(HttpStatus.SERVICE_UNAVAILABLE,
-                "Authentication is temporarily unavailable. Please try again later.", request);
+                "Database circuit breaker is OPEN", request);
     }
     @ExceptionHandler(DuplicateUsernameException.class)
     public ResponseEntity<ApiResponse> handleDuplicateUsername(

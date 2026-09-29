@@ -612,7 +612,8 @@ Request 2 → Allowed
 Request 3 → Allowed
 Request 4 → Allowed
 Request 5 → Allowed
-Request 6 → 429 Too Many Requests
+Request 6 → Allowed
+Request 7 → 429 Too Many Requests
 ```
 
 This reduces brute-force login attempts.
@@ -815,10 +816,11 @@ JWT and authentication cookies
 ```
 
 Only the login lookup is protected. Registration, refresh-token processing,
-profile lookup, logout, authorization, and the rate limiter keep their existing
-behavior. When PostgreSQL failures reach the configured threshold, the breaker
+profile lookup, logout, authorization, and the rate limiter remain outside this
+breaker. When PostgreSQL failures reach the configured threshold, the breaker
 opens and later login requests receive `503 Service Unavailable` without another
-database lookup.
+database lookup. Database calls that actually fail return `Database unavailable`;
+calls rejected by the open breaker return `Database circuit breaker is OPEN`.
 
 The current state is available at:
 
@@ -828,12 +830,9 @@ curl http://localhost:8080/api/v1/test/circuit-state
 
 ### Demonstrating PostgreSQL failure and recovery
 
-Keep the committed rate limit at five requests per minute. For this manual demo,
-temporarily raise it only for the current application process:
-
-```powershell
-.\gradlew bootRun --args="--resilience4j.ratelimiter.configs.default.limit-for-period=20"
-```
+The committed rate limit permits six requests per minute so the five database
+failures and the first open-circuit rejection can be observed through the login
+endpoint.
 
 With PostgreSQL running, the state endpoint reports `CLOSED`. In an elevated
 PowerShell terminal, discover and stop the installed PostgreSQL service:
@@ -843,8 +842,9 @@ Get-Service -Name '*postgres*'
 Stop-Service -Name '<postgres-service-name>'
 ```
 
-Send five login requests. The database failures return 503 and open the breaker.
-A subsequent login is rejected without another PostgreSQL call, and the state
+Send five login requests. Each database failure returns `503 Database
+unavailable`, and the fifth failure opens the breaker. Request six returns `503
+Database circuit breaker is OPEN` without another PostgreSQL call, and the state
 endpoint reports `OPEN`.
 
 Restart PostgreSQL and wait at least 30 seconds:

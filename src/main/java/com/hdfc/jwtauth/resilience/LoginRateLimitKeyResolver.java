@@ -8,18 +8,22 @@ import java.util.Locale;
 public class LoginRateLimitKeyResolver {
 
     public String forUsername(String username) {
-        String normalizedUsername = username == null
-                ? "<missing>"
-                : username.trim().toLowerCase(Locale.ROOT);
-
-        return "login-user-" + normalizedUsername;
+        return "login-user-" + normalizeUsername(username);
     }
 
     public String forIp(String ip) {
-        String normalizedIp = ip == null || ip.isBlank()
+        return "login-ip-" + normalizeIp(ip);
+    }
+
+    String normalizeUsername(String username) {
+        return username == null
+                ? "<missing>"
+                : username.trim().toLowerCase(Locale.ROOT);
+    }
+
+    String normalizeIp(String ip) {
+        return ip == null || ip.isBlank()
                 ? "<unknown>"
                 : ip.trim();
-
-        return "login-ip-" + normalizedIp;
     }
 }
