@@ -1,6 +1,8 @@
 package com.hdfc.jwtauth.RegisterUserTest;
 import com.hdfc.jwtauth.entity.User;
 import com.hdfc.jwtauth.repository.UserRepository;
+import io.github.resilience4j.ratelimiter.RateLimiter;
+import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,9 +34,16 @@ class RegisterTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private RateLimiterRegistry rateLimiterRegistry;
+
     @BeforeEach
     void setUp() {
        userRepository.deleteAll(); // Ensures a completely clean DB before every test
+       rateLimiterRegistry.getAllRateLimiters().stream()
+               .map(RateLimiter::getName)
+               .toList()
+               .forEach(rateLimiterRegistry::remove);
    }
 
     @Test

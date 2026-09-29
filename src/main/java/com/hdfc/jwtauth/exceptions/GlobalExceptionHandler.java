@@ -67,13 +67,13 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage(), request);
     }
 
-    @ExceptionHandler(ExternalServiceException.class)
-    public ResponseEntity<Map<String, Object>> handleExternalService(
-            ExternalServiceException ex, HttpServletRequest request) {
+    @ExceptionHandler(DatabaseUnavailableException.class)
+    public ResponseEntity<Map<String, Object>> handleDatabaseUnavailable(
+            DatabaseUnavailableException ex, HttpServletRequest request) {
 
-        log.error("External service error on {} {}", request.getMethod(), request.getRequestURI(), ex);
+        log.error("Database unavailable on {} {}", request.getMethod(), request.getRequestURI(), ex);
         return buildResponse(HttpStatus.SERVICE_UNAVAILABLE,
-                "Authentication is temporarily unavailable", request);
+                "Database is temporarily unavailable. Please try again later.", request);
     }
 
     @ExceptionHandler(RequestNotPermitted.class)

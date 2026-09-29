@@ -2,8 +2,10 @@ package com.hdfc.jwtauth;
 
 import com.hdfc.jwtauth.entity.User;
 import com.hdfc.jwtauth.repository.UserRepository;
-import com.hdfc.jwtauth.resilience.LoginCircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.github.resilience4j.ratelimiter.RateLimiter;
+import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +22,7 @@ import jakarta.servlet.http.Cookie;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -38,11 +41,20 @@ class AuthFlowIntegrationTest {
     private PasswordEncoder passwordEncoder;
 
     @Autowired
-    private LoginCircuitBreaker loginCircuitBreaker;
+    private CircuitBreakerRegistry circuitBreakerRegistry;
+
+    @Autowired
+    private RateLimiterRegistry rateLimiterRegistry;
 
     @BeforeEach
     void seedRequiredUser() {
-        loginCircuitBreaker.reset();
+        circuitBreakerRegistry
+                .circuitBreaker("databaseCircuitBreakerCore")
+                .reset();
+        rateLimiterRegistry.getAllRateLimiters().stream()
+                .map(RateLimiter::getName)
+                .toList()
+                .forEach(rateLimiterRegistry::remove);
 
         User user = userRepository.findByUsername("sachin")
                 .orElseGet(() -> new User("sachin", "", "USER", true));
@@ -79,33 +91,63 @@ class AuthFlowIntegrationTest {
                         })
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"rate-user\",\"password\":\"rate-password\"}"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.message")
+                        .value("Too many login attempts. Please try again later."));
+    }
+
+    @Test
+    void returnsTooManyRequestsForOneIpAcrossRotatingUsernames() throws Exception {
+        for (int attempt = 0; attempt < 5; attempt++) {
+            mockMvc.perform(post("/api/v1/auth/login")
+                            .with(request -> {
+                                request.setRemoteAddr("198.51.100.50");
+                                return request;
+                            })
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"username\":\"unknown-" + attempt + "\",\"password\":\"wrong\"}"))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .with(request -> {
+                            request.setRemoteAddr("198.51.100.50");
+                            return request;
+                        })
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"unknown-6\",\"password\":\"wrong\"}"))
                 .andExpect(status().isTooManyRequests());
     }
 
     @Test
-    void opensCircuitAfterDependencyFailuresAndContinuesReturningServiceUnavailable() throws Exception {
-        for (int attempt = 1; attempt <= 5; attempt++) {
-            String clientIp = "198.51.100." + (20 + attempt);
+    void returnsTooManyRequestsForOneUsernameAcrossRotatingIps() throws Exception {
+        User user = userRepository.findByUsername("rotating-ip-user")
+                .orElseGet(() -> new User("rotating-ip-user", "", "USER", true));
+        user.setPassword(passwordEncoder.encode("rate-password"));
+        user.setRole("USER");
+        user.setActive(true);
+        userRepository.save(user);
+
+        for (int attempt = 0; attempt < 5; attempt++) {
+            String clientIp = "203.0.113." + attempt;
             mockMvc.perform(post("/api/v1/auth/login")
                             .with(request -> {
                                 request.setRemoteAddr(clientIp);
                                 return request;
                             })
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"username\":\"serviceDown\",\"password\":\"password\"}"))
-                    .andExpect(status().isServiceUnavailable());
+                            .content("{\"username\":\"rotating-ip-user\",\"password\":\"rate-password\"}"))
+                    .andExpect(status().isOk());
         }
-
-        assertEquals(CircuitBreaker.State.OPEN, loginCircuitBreaker.getState());
 
         mockMvc.perform(post("/api/v1/auth/login")
                         .with(request -> {
-                            request.setRemoteAddr("198.51.100.99");
+                            request.setRemoteAddr("203.0.113.99");
                             return request;
                         })
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"serviceDown\",\"password\":\"password\"}"))
-                .andExpect(status().isServiceUnavailable());
+                        .content("{\"username\":\"rotating-ip-user\",\"password\":\"rate-password\"}"))
+                .andExpect(status().isTooManyRequests());
     }
 
     @Test
@@ -136,18 +178,20 @@ class AuthFlowIntegrationTest {
         mockMvc.perform(get("/api/v1/auth/auth")
                         .cookie(accessToken))
                 .andExpect(status().isUnauthorized());
+
+        assertEquals(
+                CircuitBreaker.State.CLOSED,
+                circuitBreakerRegistry
+                        .circuitBreaker("databaseCircuitBreakerCore")
+                        .getState()
+        );
     }
 
     @Test
-    void mapsInvalidCredentialsAndExternalFailureToExpectedStatuses() throws Exception {
+    void mapsInvalidCredentialsToUnauthorized() throws Exception {
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"unknown-user\",\"password\":\"wrong\"}"))
                 .andExpect(status().isUnauthorized());
-
-        mockMvc.perform(get("/api/v1/test/external"))
-                .andExpect(status().isOk())
-                .andExpect(content().string(
-                        "FALLBACK RESPONSE: External authentication service is temporarily unavailable"));
     }
 }

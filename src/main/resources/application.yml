@@ -34,20 +34,29 @@ logging:
       max-history: 30
       total-size-cap: 1GB
 
-login:
-  rate-limit:
-    limit-for-period: 5
-    limit-refresh-period: 1m
-    timeout-duration: 0s
-
-  circuit-breaker:
-    failure-rate-threshold: 50
-    slow-call-rate-threshold: 100
-    wait-duration-in-open-state: 30s
-    slow-call-duration-threshold: 2s
-    permitted-number-of-calls-in-half-open-state: 3
-    minimum-number-of-calls: 5
-    sliding-window-size: 10
+resilience4j:
+  circuitbreaker:
+    instances:
+      databaseCircuitBreakerCore:
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 100
+        wait-duration-in-open-state: 30s
+        slow-call-duration-threshold: 2s
+        permitted-number-of-calls-in-half-open-state: 3
+        minimum-number-of-calls: 5
+        sliding-window-size: 10
+        sliding-window-type: COUNT_BASED
+        automatic-transition-from-open-to-half-open-enabled: true
+        record-exceptions:
+          - org.springframework.dao.DataAccessException
+          - org.springframework.transaction.TransactionException
+          - jakarta.persistence.PersistenceException
+  ratelimiter:
+    configs:
+      default:
+        limit-for-period: 5
+        limit-refresh-period: 1m
+        timeout-duration: 0s
 
 app:
   security:

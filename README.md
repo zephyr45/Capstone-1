@@ -99,7 +99,7 @@ The system supports secure user registration, login, JWT-based authentication, r
 
 * Global exception handling
 * Structured application logging
-* Circuit breaker/fallback for external-service simulation
+* Database circuit breaker for the login user lookup
 * Authentication event logging
 
 ---
@@ -136,7 +136,8 @@ src/main/java/com/hdfc/jwtauth
 │   ├── TokenStore
 │   ├── CookieService
 │   ├── LoginAttemptService
-│   ├── LoginRateLimiter
+│   ├── LoginRateLimitGuard
+│   ├── LoginRateLimitKeyResolver
 │   ├── CustomAuthenticationEntryPoint
 │   └── CustomAccessDeniedHandler
 │
@@ -790,23 +791,71 @@ Logs help with debugging, monitoring and security auditing.
 
 ---
 
-# 🔌 Circuit Breaker
+# 🔌 Database Circuit Breaker
 
-The application includes an external-login/service simulation protected by a circuit breaker.
-
-Purpose:
+The login-specific PostgreSQL lookup is protected by the Resilience4j instance
+`databaseCircuitBreakerCore`:
 
 ```text
-External Service
+POST /api/v1/auth/login
        ↓
-Failure
+LoginRateLimitGuard
        ↓
-Circuit Breaker
+Account lock check
        ↓
-Fallback
+UserService.findUserForLogin() @CircuitBreaker
+       ↓
+UserRepository.findByUsername()
+       ↓
+PostgreSQL
+       ↓
+ExternalLoginService credential validation
+       ↓
+JWT and authentication cookies
 ```
 
-This prevents repeated calls to an unavailable dependency and demonstrates resilience patterns.
+Only the login lookup is protected. Registration, refresh-token processing,
+profile lookup, logout, authorization, and the rate limiter keep their existing
+behavior. When PostgreSQL failures reach the configured threshold, the breaker
+opens and later login requests receive `503 Service Unavailable` without another
+database lookup.
+
+The current state is available at:
+
+```bash
+curl http://localhost:8080/api/v1/test/circuit-state
+```
+
+### Demonstrating PostgreSQL failure and recovery
+
+Keep the committed rate limit at five requests per minute. For this manual demo,
+temporarily raise it only for the current application process:
+
+```powershell
+.\gradlew bootRun --args="--resilience4j.ratelimiter.configs.default.limit-for-period=20"
+```
+
+With PostgreSQL running, the state endpoint reports `CLOSED`. In an elevated
+PowerShell terminal, discover and stop the installed PostgreSQL service:
+
+```powershell
+Get-Service -Name '*postgres*'
+Stop-Service -Name '<postgres-service-name>'
+```
+
+Send five login requests. The database failures return 503 and open the breaker.
+A subsequent login is rejected without another PostgreSQL call, and the state
+endpoint reports `OPEN`.
+
+Restart PostgreSQL and wait at least 30 seconds:
+
+```powershell
+Start-Service -Name '<postgres-service-name>'
+```
+
+The state endpoint reports `HALF_OPEN`. Three successful login requests are the
+configured recovery probes; after they succeed, the state returns to `CLOSED`.
+There is intentionally no endpoint that stops or simulates failure of the database.
 
 ---
 
@@ -832,7 +881,7 @@ This prevents repeated calls to an unavailable dependency and demonstrates resil
 | Session state           | Stateless                |
 | Error handling          | Global Exception Handler |
 | Monitoring              | SLF4J + Logback          |
-| External failures       | Circuit Breaker          |
+| Database failures       | Circuit Breaker          |
 
 ---
 
@@ -1004,7 +1053,7 @@ The key differentiators of the project are:
 9. **USER and ADMIN access is enforced by Spring Security.**
 10. **Frontend inactivity handling is integrated with backend logout.**
 11. **Authentication events are logged.**
-12. **External-service failures are handled through a circuit breaker.**
+12. **Login database failures are handled through a circuit breaker.**
 
 ---
 

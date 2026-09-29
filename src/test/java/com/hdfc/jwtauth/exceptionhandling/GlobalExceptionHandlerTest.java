@@ -1,6 +1,6 @@
 package com.hdfc.jwtauth.exceptionhandling;
 
-import com.hdfc.jwtauth.exceptions.ExternalServiceException;
+import com.hdfc.jwtauth.exceptions.DatabaseUnavailableException;
 import com.hdfc.jwtauth.exceptions.GlobalExceptionHandler;
 import com.hdfc.jwtauth.exceptions.InvalidCredentialsException;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,12 +35,13 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void returnsServiceUnavailableResponseForExternalServiceFailure() throws Exception {
-        mockMvc.perform(get("/test/external-failure"))
+    void returnsServiceUnavailableResponseForDatabaseFailure() throws Exception {
+        mockMvc.perform(get("/test/database-failure"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.status").value(503))
-                .andExpect(jsonPath("$.message").value("Authentication is temporarily unavailable"))
-                .andExpect(jsonPath("$.path").value("/test/external-failure"));
+                .andExpect(jsonPath("$.message")
+                        .value("Database is temporarily unavailable. Please try again later."))
+                .andExpect(jsonPath("$.path").value("/test/database-failure"));
     }
 
     @RestController
@@ -51,9 +52,12 @@ class GlobalExceptionHandlerTest {
             throw new InvalidCredentialsException("credentials rejected");
         }
 
-        @GetMapping("/test/external-failure")
-        void externalFailure() {
-            throw new ExternalServiceException("service unavailable");
+        @GetMapping("/test/database-failure")
+        void databaseFailure() {
+            throw new DatabaseUnavailableException(
+                    "database unavailable",
+                    new IllegalStateException("connection refused")
+            );
         }
     }
 }

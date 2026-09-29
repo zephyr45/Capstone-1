@@ -4,7 +4,7 @@ import io.swagger.v3.oas.annotations.*;
 import com.hdfc.jwtauth.entity.User;
 import com.hdfc.jwtauth.exceptions.InvalidCredentialsException;
 import com.hdfc.jwtauth.repository.UserRepository;
-import com.hdfc.jwtauth.resilience.LoginRateLimiter;
+import com.hdfc.jwtauth.resilience.LoginRateLimitGuard;
 import com.hdfc.jwtauth.security.CookieService;
 import com.hdfc.jwtauth.security.TokenStore;
 import com.hdfc.jwtauth.web.ApiResponse;
@@ -44,7 +44,7 @@ public class AuthController {
     private static final Logger log =
             LoggerFactory.getLogger(AuthController.class);
 
-    private final LoginRateLimiter loginRateLimiter;
+    private final LoginRateLimitGuard loginRateLimitGuard;
     private final CookieService cookieService;
     private final LoginAttemptService loginAttemptService;
     private final JwtService jwtService;
@@ -57,7 +57,7 @@ public class AuthController {
 
 
     public AuthController(
-            LoginRateLimiter loginRateLimiter,
+            LoginRateLimitGuard loginRateLimitGuard,
             CookieService cookieService,
             LoginAttemptService loginAttemptService,
             JwtService jwtService,
@@ -68,7 +68,7 @@ public class AuthController {
             UserService userService
     ) {
 
-        this.loginRateLimiter = loginRateLimiter;
+        this.loginRateLimitGuard = loginRateLimitGuard;
         this.cookieService = cookieService;
         this.loginAttemptService = loginAttemptService;
         this.jwtService = jwtService;
@@ -146,7 +146,8 @@ public class AuthController {
         // RESILIENCE4J RATE LIMIT CHECK
         // --------------------------------
 
-        loginRateLimiter.checkRateLimit(username, ip);
+        loginRateLimitGuard.checkIp(ip);
+        loginRateLimitGuard.checkUsername(username);
 
 
         // --------------------------------
@@ -172,8 +173,8 @@ public class AuthController {
         // FIND USER FROM DATABASE
         // --------------------------------
 
-        User user = userRepository
-                .findByUsername(username)
+        User user = userService
+                .findUserForLogin(username)
                 .orElse(null);
 
 
