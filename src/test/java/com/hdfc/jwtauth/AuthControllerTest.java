@@ -194,6 +194,31 @@ class AuthControllerTest {
     }
 
     @Test
+    void shouldNotLockAccountAfterFiveWrongPasswords() throws Exception {
+
+        User user = new User(
+                "no-lockout-user",
+                passwordEncoder.encode("Correct@123"),
+                "USER",
+                true
+        );
+
+        userRepository.save(user);
+
+        for (int attempt = 0; attempt < 6; attempt++) {
+            mockMvc.perform(post("/api/v1/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                        {
+                            "username": "no-lockout-user",
+                            "password": "Wrong@123"
+                        }
+                        """))
+                    .andExpect(status().isUnauthorized());
+        }
+    }
+
+    @Test
     void shouldRejectLoginWithUnknownUsername() throws Exception {
 
         mockMvc.perform(post("/api/v1/auth/login")

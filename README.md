@@ -2,7 +2,7 @@
 
 A production-style authentication and authorization system built using **Spring Boot, Spring Security, JWT, PostgreSQL and HttpOnly Cookies**.
 
-The system supports secure user registration, login, JWT-based authentication, role-based authorization, refresh-token rotation, account lockout, rate limiting, session management and secure logout.
+The system supports secure user registration, login, JWT-based authentication, role-based authorization, refresh-token rotation, rate limiting, session management and secure logout.
 
 ---
 
@@ -82,8 +82,6 @@ The system supports secure user registration, login, JWT-based authentication, r
 ### Account Security
 
 * Login rate limiting
-* Failed-login tracking
-* Temporary account lockout
 * Account active/inactive status
 * Secure logout
 
@@ -135,7 +133,6 @@ src/main/java/com/hdfc/jwtauth
 │   ├── JwtAuthenticationFilter
 │   ├── TokenStore
 │   ├── CookieService
-│   ├── LoginAttemptService
 │   ├── LoginRateLimitGuard
 │   ├── LoginRateLimitKeyResolver
 │   ├── CustomAuthenticationEntryPoint
@@ -620,31 +617,6 @@ This reduces brute-force login attempts.
 
 ---
 
-# 🔒 Account Lockout
-
-Failed login attempts are tracked.
-
-After the configured number of failures:
-
-```text
-Account
-   ↓
-LOCKED
-   ↓
-HTTP 423 Locked
-```
-
-Example:
-
-```text
-Too many failed login attempts.
-Account locked for 5 minutes.
-```
-
-Successful authentication resets the failed-attempt counter.
-
----
-
 # 🔄 Refresh Token Rotation
 
 The application does not continuously reuse the same refresh token.
@@ -765,7 +737,6 @@ Examples:
 401 → Unauthorized
 403 → Forbidden
 409 → Conflict
-423 → Locked
 429 → Too Many Requests
 500 → Internal Server Error
 ```
@@ -783,7 +754,6 @@ SIGNUP_SUCCESS
 LOGIN_SUCCESS
 LOGIN_FAILED
 LOGIN_BLOCKED
-ACCOUNT_LOCKED
 TOKEN_REFRESH
 LOGOUT_SUCCESS
 ```
@@ -879,7 +849,6 @@ There is intentionally no endpoint that stops or simulates failure of the databa
 | Refresh token           | 7 days                   |
 | Refresh security        | Rotation                 |
 | Brute-force protection  | Rate limiting            |
-| Failed login protection | Account lockout          |
 | Browser token access    | HttpOnly                 |
 | Cross-origin security   | CORS                     |
 | Session state           | Stateless                |
@@ -1031,7 +1000,6 @@ The project combines:
 * Token rotation
 * Token revocation
 * Rate limiting
-* Account lockout
 * Session management
 * Logging
 * Exception handling

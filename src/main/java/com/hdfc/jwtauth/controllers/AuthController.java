@@ -33,7 +33,6 @@ import java.util.Map;
 
 import com.hdfc.jwtauth.services.JwtService;
 import com.hdfc.jwtauth.services.ExternalLoginService;
-import com.hdfc.jwtauth.services.LoginAttemptService;
 
 import java.util.Set;
 @RestController
@@ -46,7 +45,6 @@ public class AuthController {
 
     private final LoginRateLimitGuard loginRateLimitGuard;
     private final CookieService cookieService;
-    private final LoginAttemptService loginAttemptService;
     private final JwtService jwtService;
     private final TokenStore tokenStore;
     private final ExternalLoginService externalLoginService;
@@ -59,7 +57,6 @@ public class AuthController {
     public AuthController(
             LoginRateLimitGuard loginRateLimitGuard,
             CookieService cookieService,
-            LoginAttemptService loginAttemptService,
             JwtService jwtService,
             TokenStore tokenStore,
             ExternalLoginService externalLoginService,
@@ -70,7 +67,6 @@ public class AuthController {
 
         this.loginRateLimitGuard = loginRateLimitGuard;
         this.cookieService = cookieService;
-        this.loginAttemptService = loginAttemptService;
         this.jwtService = jwtService;
         this.tokenStore = tokenStore;
         this.externalLoginService = externalLoginService;
@@ -131,7 +127,7 @@ public class AuthController {
     @PostMapping("/login")
     @Operation(
             summary = "Authenticate user",
-            description = "Authenticates user credentials, sets access/refresh HTTP-only cookies, and tracks failed attempts / rate limits."
+            description = "Authenticates user credentials, sets access/refresh HTTP-only cookies, and applies login rate limits."
     )
     public ResponseEntity<?> login(
             @RequestBody LoginRequest request,
@@ -149,25 +145,6 @@ public class AuthController {
         loginRateLimitGuard.checkIp(ip);
         loginRateLimitGuard.checkUsername(username);
 
-
-        // --------------------------------
-        // ACCOUNT LOCK CHECK
-        // --------------------------------
-
-        if (loginAttemptService.isLocked(username)) {
-
-            log.warn(
-                    "LOGIN_BLOCKED username={} ip={} reason=ACCOUNT_LOCKED",
-                    username,
-                    ip
-            );
-
-            return ResponseEntity
-                    .status(HttpStatus.LOCKED)
-                    .body(new ApiResponse(
-                            "Account is temporarily locked. Try again later."
-                    ));
-        }
 
         // --------------------------------
         // FIND USER FROM DATABASE
@@ -192,37 +169,11 @@ public class AuthController {
                     )
             );
         } catch (InvalidCredentialsException ex) {
-
-            loginAttemptService.loginFailed(username);
-
-            int failedAttempts =
-                    loginAttemptService
-                            .getFailedAttempts(username);
-
             log.warn(
-                    "LOGIN_FAILED username={} ip={} failedAttempts={}",
+                    "LOGIN_FAILED username={} ip={}",
                     username,
-                    ip,
-                    failedAttempts
+                    ip
             );
-
-
-            // Account became locked
-            if (loginAttemptService.isLocked(username)) {
-
-                log.warn(
-                        "ACCOUNT_LOCKED username={} ip={}",
-                        username,
-                        ip
-                );
-
-                return ResponseEntity
-                        .status(HttpStatus.LOCKED)
-                        .body(new ApiResponse(
-                                "Too many failed login attempts. Account locked for 5 minutes."
-                        ));
-            }
-
 
             return ResponseEntity
                     .status(HttpStatus.UNAUTHORIZED)
@@ -255,9 +206,6 @@ public class AuthController {
         // --------------------------------
         // LOGIN SUCCESS
         // --------------------------------
-
-        loginAttemptService.loginSucceeded(username);
-
 
         // --------------------------------
         // GENERATE JWTs
