@@ -819,8 +819,10 @@ Only the login lookup is protected. Registration, refresh-token processing,
 profile lookup, logout, authorization, and the rate limiter remain outside this
 breaker. When PostgreSQL failures reach the configured threshold, the breaker
 opens and later login requests receive `503 Service Unavailable` without another
-database lookup. Database calls that actually fail return `Database unavailable`;
-calls rejected by the open breaker return `Database circuit breaker is OPEN`.
+database lookup. Both dependency failures and calls rejected by the open breaker
+return the public code `AUTH_SERVICE_UNAVAILABLE` with the safe message
+`Authentication service is temporarily unavailable. Please try again later.`
+Database and circuit-breaker details remain in the server logs.
 
 The current state is available at:
 
@@ -842,9 +844,9 @@ Get-Service -Name '*postgres*'
 Stop-Service -Name '<postgres-service-name>'
 ```
 
-Send five login requests. Each database failure returns `503 Database
-unavailable`, and the fifth failure opens the breaker. Request six returns `503
-Database circuit breaker is OPEN` without another PostgreSQL call, and the state
+Send five login requests. Each database failure returns `503` with code
+`AUTH_SERVICE_UNAVAILABLE`, and the fifth failure opens the breaker. Request six
+returns the same public response without another PostgreSQL call, and the state
 endpoint reports `OPEN`.
 
 Restart PostgreSQL and wait at least 30 seconds:

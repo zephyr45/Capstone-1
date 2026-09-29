@@ -20,6 +20,9 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final String AUTH_SERVICE_UNAVAILABLE_CODE = "AUTH_SERVICE_UNAVAILABLE";
+    private static final String AUTH_SERVICE_UNAVAILABLE_MESSAGE =
+            "Authentication service is temporarily unavailable. Please try again later.";
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, String>> handleValidationExceptions(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
@@ -41,6 +44,25 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(status).body(response);
+    }
+
+    /**
+     * Keeps infrastructure details out of the public API while providing clients
+     * with a stable code they can safely use for presentation logic.
+     */
+    private ResponseEntity<Map<String, Object>> buildAuthenticationServiceUnavailableResponse(
+            HttpServletRequest request) {
+
+        Map<String, Object> response = Map.of(
+                "timestamp", Instant.now().toString(),
+                "status", HttpStatus.SERVICE_UNAVAILABLE.value(),
+                "error", HttpStatus.SERVICE_UNAVAILABLE.getReasonPhrase(),
+                "code", AUTH_SERVICE_UNAVAILABLE_CODE,
+                "message", AUTH_SERVICE_UNAVAILABLE_MESSAGE,
+                "path", request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
     }
 
     @ExceptionHandler(InvalidCredentialsException.class)
@@ -71,9 +93,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleDatabaseUnavailable(
             DatabaseUnavailableException ex, HttpServletRequest request) {
 
-        log.error("Database unavailable on {} {}", request.getMethod(), request.getRequestURI(), ex);
-        return buildResponse(HttpStatus.SERVICE_UNAVAILABLE,
-                "Database unavailable", request);
+        log.error(
+                "Authentication dependency failure: database unavailable on {} {}",
+                request.getMethod(),
+                request.getRequestURI(),
+                ex
+        );
+        return buildAuthenticationServiceUnavailableResponse(request);
     }
 
     @ExceptionHandler(RequestNotPermitted.class)
@@ -96,9 +122,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleCircuitBreaker(
             CallNotPermittedException ex, HttpServletRequest request) {
 
-        log.warn("Circuit breaker open for {} {}", request.getMethod(), request.getRequestURI());
-        return buildResponse(HttpStatus.SERVICE_UNAVAILABLE,
-                "Database circuit breaker is OPEN", request);
+        log.warn(
+                "Database circuit breaker OPEN; rejected {} {} circuitBreaker={}",
+                request.getMethod(),
+                request.getRequestURI(),
+                ex.getCausingCircuitBreakerName()
+        );
+        return buildAuthenticationServiceUnavailableResponse(request);
     }
     @ExceptionHandler(DuplicateUsernameException.class)
     public ResponseEntity<ApiResponse> handleDuplicateUsername(

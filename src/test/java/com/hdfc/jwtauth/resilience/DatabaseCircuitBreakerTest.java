@@ -51,6 +51,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class DatabaseCircuitBreakerTest {
 
     private static final String CIRCUIT_BREAKER_NAME = "databaseCircuitBreakerCore";
+    private static final String SERVICE_UNAVAILABLE_MESSAGE =
+            "Authentication service is temporarily unavailable. Please try again later.";
 
     @Autowired
     private UserService userService;
@@ -81,15 +83,16 @@ class DatabaseCircuitBreakerTest {
         for (int attempt = 0; attempt < 5; attempt++) {
             performLogin()
                     .andExpect(status().isServiceUnavailable())
-                    .andExpect(jsonPath("$.message").value("Database unavailable"));
+                    .andExpect(jsonPath("$.code").value("AUTH_SERVICE_UNAVAILABLE"))
+                    .andExpect(jsonPath("$.message").value(SERVICE_UNAVAILABLE_MESSAGE));
         }
 
         assertEquals(CircuitBreaker.State.OPEN, circuitBreaker.getState());
 
         performLogin()
                 .andExpect(status().isServiceUnavailable())
-                .andExpect(jsonPath("$.message")
-                        .value("Database circuit breaker is OPEN"));
+                .andExpect(jsonPath("$.code").value("AUTH_SERVICE_UNAVAILABLE"))
+                .andExpect(jsonPath("$.message").value(SERVICE_UNAVAILABLE_MESSAGE));
         verify(userRepository, times(5)).findByUsername("sachin");
     }
 

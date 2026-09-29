@@ -39,8 +39,10 @@ class GlobalExceptionHandlerTest {
         mockMvc.perform(get("/test/database-failure"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.status").value(503))
+                .andExpect(jsonPath("$.code")
+                        .value("AUTH_SERVICE_UNAVAILABLE"))
                 .andExpect(jsonPath("$.message")
-                        .value("Database unavailable"))
+                        .value("Authentication service is temporarily unavailable. Please try again later."))
                 .andExpect(jsonPath("$.path").value("/test/database-failure"));
     }
 

@@ -8,6 +8,10 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
+    hikari:
+      connection-timeout: 2000
+      validation-timeout: 1000
+
   jpa:
     hibernate:
       ddl-auto: update
@@ -54,7 +58,7 @@ resilience4j:
   ratelimiter:
     configs:
       default:
-        limit-for-period: 6
+        limit-for-period: 20
         limit-refresh-period: 1m
         timeout-duration: 0s
 
