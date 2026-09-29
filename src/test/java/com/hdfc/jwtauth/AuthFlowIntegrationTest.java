@@ -65,7 +65,7 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
-    void returnsTooManyRequestsOnTwentyFirstLoginForSameUsernameAndIp() throws Exception {
+    void returnsTooManyRequestsOnSeventhLoginForSameUsernameAndIp() throws Exception {
         User user = userRepository.findByUsername("rate-user")
                 .orElseGet(() -> new User("rate-user", "", "USER", true));
         user.setPassword(passwordEncoder.encode("rate-password"));
@@ -73,7 +73,7 @@ class AuthFlowIntegrationTest {
         user.setActive(true);
         userRepository.save(user);
 
-        for (int attempt = 0; attempt < 20; attempt++) {
+        for (int attempt = 0; attempt < 6; attempt++) {
             mockMvc.perform(post("/api/v1/auth/login")
                             .with(request -> {
                                 request.setRemoteAddr("198.51.100.10");
@@ -98,7 +98,7 @@ class AuthFlowIntegrationTest {
 
     @Test
     void returnsTooManyRequestsForOneIpAcrossRotatingUsernames() throws Exception {
-        for (int attempt = 0; attempt < 20; attempt++) {
+        for (int attempt = 0; attempt < 6; attempt++) {
             mockMvc.perform(post("/api/v1/auth/login")
                             .with(request -> {
                                 request.setRemoteAddr("198.51.100.50");
@@ -115,7 +115,7 @@ class AuthFlowIntegrationTest {
                             return request;
                         })
                         .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"username\":\"unknown-20\",\"password\":\"wrong\"}"))
+                        .content("{\"username\":\"unknown-6\",\"password\":\"wrong\"}"))
                 .andExpect(status().isTooManyRequests());
     }
 
@@ -128,7 +128,7 @@ class AuthFlowIntegrationTest {
         user.setActive(true);
         userRepository.save(user);
 
-        for (int attempt = 0; attempt < 20; attempt++) {
+        for (int attempt = 0; attempt < 6; attempt++) {
             String clientIp = "203.0.113." + attempt;
             mockMvc.perform(post("/api/v1/auth/login")
                             .with(request -> {

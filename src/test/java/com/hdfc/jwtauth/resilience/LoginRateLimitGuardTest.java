@@ -25,8 +25,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(OutputCaptureExtension.class)
 class LoginRateLimitGuardTest {
 
-    private static final int LOGIN_LIMIT_PER_MINUTE = 20;
-
     @Autowired
     private LoginRateLimitGuard guard;
 
@@ -50,7 +48,7 @@ class LoginRateLimitGuardTest {
     void limitsOneIpAcrossRotatingUsernames() {
         String ip = "192.0.2.10";
 
-        for (int attempt = 0; attempt < LOGIN_LIMIT_PER_MINUTE; attempt++) {
+        for (int attempt = 0; attempt < 6; attempt++) {
             String username = "user-" + attempt;
             assertDoesNotThrow(() -> guard.checkIp(ip));
             assertDoesNotThrow(() -> guard.checkUsername(username));
@@ -68,23 +66,23 @@ class LoginRateLimitGuardTest {
                 " Alice ", "alice", "ALICE", "aLiCe", " alice", "ALIce ", "aLICE"
         };
 
-        for (int attempt = 0; attempt < LOGIN_LIMIT_PER_MINUTE; attempt++) {
+        for (int attempt = 0; attempt < 6; attempt++) {
             String ip = "198.51.100." + attempt;
             assertDoesNotThrow(() -> guard.checkIp(ip));
-            String username = usernameVariants[attempt % usernameVariants.length];
+            String username = usernameVariants[attempt];
             assertDoesNotThrow(() -> guard.checkUsername(username));
         }
 
         assertDoesNotThrow(() -> guard.checkIp("198.51.100.99"));
         assertThrows(RateLimitExceededException.class,
-                () -> guard.checkUsername("alice"));
+                () -> guard.checkUsername(usernameVariants[6]));
     }
 
     @Test
     void logsSuccessfulAndRejectedRateLimitChecks(CapturedOutput output) {
         String ip = "192.0.2.25";
 
-        for (int attempt = 0; attempt < LOGIN_LIMIT_PER_MINUTE; attempt++) {
+        for (int attempt = 0; attempt < 6; attempt++) {
             guard.checkIp(ip);
         }
         guard.checkUsername("Alice");
@@ -124,8 +122,7 @@ class LoginRateLimitGuardTest {
     }
 
     private void assertLimiterConfiguration(RateLimiter rateLimiter) {
-        assertEquals(LOGIN_LIMIT_PER_MINUTE,
-                rateLimiter.getRateLimiterConfig().getLimitForPeriod());
+        assertEquals(6, rateLimiter.getRateLimiterConfig().getLimitForPeriod());
         assertEquals(Duration.ofMinutes(1),
                 rateLimiter.getRateLimiterConfig().getLimitRefreshPeriod());
         assertEquals(Duration.ZERO, rateLimiter.getRateLimiterConfig().getTimeoutDuration());
